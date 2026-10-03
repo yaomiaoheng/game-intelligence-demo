@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="GamePulse 游戏市场情报与商业机会分析系统" />
+  <title>GamePulse · 游戏情报分析系统</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="#"><span class="brand-mark">GP</span><span>GamePulse<small>市场情报中枢</small></span></a>
+      <nav aria-label="主导航">
+        <a class="nav-item active" href="#overview"><span>⌁</span>决策总览</a>
+        <a class="nav-item" href="#games"><span>◫</span>游戏雷达</a>
+        <a class="nav-item" href="#opportunities"><span>⌁</span>机会洞察</a>
+        <a class="nav-item" href="#assistant"><span>✦</span>智能分析</a>
+      </nav>
+      <div class="sidebar-foot">
+        <p>数据覆盖</p><strong>中国 · 欧美 · 全球</strong>
+        <span class="live"><i></i>系统运行正常</span>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <button class="menu-button" aria-label="打开菜单">☰</button>
+        <div><p class="eyebrow">MARKET INTELLIGENCE / 2026</p><h1>游戏商业机会雷达</h1></div>
+        <div class="top-actions"><span class="updated" id="updatedAt">数据同步中</span><button class="icon-button" aria-label="通知">●</button><span class="avatar">策</span></div>
+      </header>
+
+      <section class="content" id="overview">
+        <div class="notice" id="dataNotice">当前为演示数据，正式决策前请核验数据源。</div>
+        <div class="hero-grid">
+          <article class="hero-card">
+            <div class="hero-copy"><span class="signal">本周决策信号</span><h2>模拟经营赛道<br /><em>正在加速升温</em></h2><p>微信小游戏渠道新增用户增长显著，轻社交与治愈题材的组合出现更高传播效率。</p><a href="#opportunities">查看机会解读 <span>→</span></a></div>
+            <div class="orbital" aria-hidden="true"><div class="orbit orbit-a"></div><div class="orbit orbit-b"></div><div class="core">+48.6%<small>最快增速</small></div></div>
+          </article>
+          <article class="brief-card"><div class="card-heading"><div><span class="kicker">AI BRIEF</span><h3>今日情报速览</h3></div><span class="pulse">LIVE</span></div><ul><li><b>01</b><span>《港湾物语》冲至免费榜第 2，增长动能领先。</span></li><li><b>02</b><span>策略 RPG 收入集中度提升，高品质内容仍具溢价。</span></li><li><b>03</b><span>轻度游戏下载扩张明显，商业化深度有待验证。</span></li></ul></article>
+        </div>
+
+        <div class="metric-grid" aria-label="核心指标">
+          <article><span>监测产品</span><strong id="gamesMetric">—</strong><small>款 · 多渠道样本</small></article>
+          <article><span>监测收入</span><strong id="revenueMetric">—</strong><small>万元 · 近周期</small></article>
+          <article><span>新增下载</span><strong id="downloadsMetric">—</strong><small>万次 · 近周期</small></article>
+          <article class="accent-metric"><span>平均增速</span><strong id="growthMetric">—</strong><small>领先产品 <b id="leaderMetric">—</b></small></article>
+        </div>
+
+        <section class="panel" id="games">
+          <div class="section-heading"><div><span class="kicker">GAME RADAR</span><h2>游戏市场雷达</h2></div><span class="result-count" id="resultCount">0 个结果</span></div>
+          <form class="filters" id="filterForm">
+            <label class="search"><span>⌕</span><input id="searchInput" placeholder="搜索游戏、厂商、品类或标签" /></label>
+            <select id="regionFilter" aria-label="地区"><option value="">全部地区</option><option>中国</option><option>全球</option><option>欧美</option></select>
+            <select id="channelFilter" aria-label="渠道"><option value="">全部渠道</option><option>App Store</option><option>Google Play</option><option>华为应用市场</option><option>微信小游戏</option></select>
+            <select id="sortFilter" aria-label="排序"><option value="growth">按增速</option><option value="revenue">按收入</option><option value="downloads">按下载</option><option value="rating">按评分</option></select>
+          </form>
+          <div class="table-wrap"><table><thead><tr><th>产品</th><th>市场 / 渠道</th><th>免费榜</th><th>收入</th><th>周期增速</th><th>情报信号</th></tr></thead><tbody id="gameRows"></tbody></table></div>
+        </section>
+
+        <div class="analysis-grid" id="opportunities">
+          <section class="panel chart-panel"><div class="section-heading"><div><span class="kicker">TREND TRACKER</span><h2 id="chartTitle">市场走势</h2></div><div class="legend"><span><i class="line-a"></i>收入</span><span><i class="line-b"></i>下载</span></div></div><div class="source-meta" aria-live="polite"><span id="sourceBadge">等待选择产品</span><time id="sourceUpdated">—</time></div><div class="chart-meta"><strong id="chartRevenue">—</strong><span id="chartDelta">—</span></div><canvas id="trendChart" height="220" aria-label="收入与下载趋势图"></canvas><div class="chart-axis" id="chartAxis"></div></section>
+          <section class="panel detail-panel"><div class="section-heading"><div><span class="kicker">OPPORTUNITY SCORE</span><h2>机会评估</h2></div></div><div class="score-ring"><strong id="scoreValue">86</strong><span>综合机会分</span></div><div class="score-bars"><label>增长动能 <span>92</span><i><b style="width:92%"></b></i></label><label>商业潜力 <span>88</span><i><b style="width:88%"></b></i></label><label>口碑质量 <span>84</span><i><b style="width:84%"></b></i></label></div><p class="insight" id="selectedInsight">选择游戏后，这里会给出对应的机会判断。</p></section>
+        </div>
+
+        <section class="intel-grid" aria-label="结构化情报摘要">
+          <article class="intel-card"><span class="intel-number">01</span><div><span class="kicker">TREND SUMMARY</span><h3>趋势摘要</h3><p id="trendSummary">选择游戏后生成基于证据的趋势结论。</p><small id="trendEvidence">证据：—</small></div></article>
+          <article class="intel-card"><span class="intel-number">02</span><div><span class="kicker">COMPETITORS</span><h3>竞品参考</h3><ul id="competitorList"><li>等待选择产品</li></ul></div></article>
+          <article class="intel-card risk-card"><span class="intel-number">03</span><div><span class="kicker">RISK SIGNALS</span><h3>风险提示</h3><ul id="riskList"><li>等待分析结果</li></ul></div></article>
+        </section>
+
+        <section class="assistant-panel" id="assistant">
+          <div><span class="assistant-icon">✦</span><div><span class="kicker">INTELLIGENCE COPILOT</span><h2>问问情报助手</h2><p>支持网页与钉钉机器人使用相同的数据查询能力。</p></div></div>
+          <form id="assistantForm"><input id="assistantInput" placeholder="例如：最近哪款小游戏最火？" required /><button>分析 <span>→</span></button></form>
+          <div class="answer" id="assistantAnswer">试试问：“查看星落远征的畅销榜走势”</div>
+        </section>
+      </section>
+      <footer>GamePulse Intelligence · 数据驱动的游戏立项与运营决策</footer>
+    </main>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>
