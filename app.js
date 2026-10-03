@@ -117,7 +117,10 @@ window.fetch = (input, init) => {
   return nativeFetch(input, init);
 };
 
-const state = { games: [], selected: null, metric: "revenue", rangeDays: 30 };
+const state = {
+  games: [], selected: null, metric: "revenue", rangeDays: 30,
+  startDate: null, endDate: null, rangeMode: "preset", referenceYear: new Date().getUTCFullYear(),
+};
 const $ = (selector) => document.querySelector(selector);
 
 async function getJSON(url, options) {
@@ -127,15 +130,21 @@ async function getJSON(url, options) {
   return data;
 }
 
-function formatNumber(value) { return new Intl.NumberFormat("zh-CN").format(value); }
+function hasValue(value) { return value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value)); }
+function formatNumber(value) { return hasValue(value) ? new Intl.NumberFormat("zh-CN").format(value) : "暂无数据"; }
+function valueCell(value, suffix = "") {
+  return hasValue(value) ? `${formatNumber(value)}${suffix}` : '<span class="missing-value">暂无数据</span>';
+}
 
 async function loadOverview() {
   const data = await getJSON("/api/overview");
+  const overviewYear = Number(String(data.updatedAt || "").slice(0, 4));
+  if (Number.isInteger(overviewYear)) state.referenceYear = overviewYear;
   $("#gamesMetric").textContent = data.games;
   $("#revenueMetric").textContent = formatNumber(data.revenue);
   $("#downloadsMetric").textContent = formatNumber(data.downloads);
-  $("#growthMetric").textContent = `+${data.avgGrowth}%`;
-  $("#leaderMetric").textContent = data.leader;
+  $("#growthMetric").textContent = hasValue(data.avgGrowth) ? `${data.avgGrowth > 0 ? "+" : ""}${data.avgGrowth}%` : "暂无数据";
+  $("#leaderMetric").textContent = data.leader || "暂无数据";
   $("#updatedAt").textContent = `更新于 ${data.updatedAt}`;
   $("#dataNotice").textContent = data.notice;
 }
@@ -146,9 +155,9 @@ function renderRows(games) {
     <tr data-id="${game.id}">
       <td><div class="game-name"><span class="game-icon">${game.name.slice(0, 1)}</span><span><strong>${game.name}</strong><small>${game.company}</small><span class="tags">${game.tags.slice(0, 2).map(tag => `<i class="tag">${tag}</i>`).join("")}</span></span></div></td>
       <td>${game.region}<br><small>${game.channel}</small></td>
-      <td><span class="rank">${game.free_rank}</span></td>
-      <td><strong>${formatNumber(game.revenue)} 万</strong></td>
-      <td class="growth ${game.growth < 0 ? "negative" : ""}">${game.growth > 0 ? "+" : ""}${game.growth}%</td>
+      <td><span class="rank">${valueCell(game.free_rank)}</span></td>
+      <td><strong>${valueCell(game.revenue, " 万")}</strong></td>
+      <td class="growth ${game.growth < 0 ? "negative" : ""}">${hasValue(game.growth) ? `${game.growth > 0 ? "+" : ""}${game.growth}%` : '<span class="missing-value">暂无数据</span>'}</td>
       <td><span class="status">${game.status}</span></td>
     </tr>`).join("") || `<tr><td colspan="6">没有符合条件的产品</td></tr>`;
   document.querySelectorAll("tr[data-id]").forEach(row => row.addEventListener("click", () => selectGame(row.dataset.id)));
@@ -176,6 +185,7 @@ async function selectGame(id) {
     getJSON(`/api/intelligence?game_name=${encodeURIComponent(selected?.name || "")}`),
   ]);
   state.selected = game;
+  syncDateControls();
   document.querySelectorAll("tr[data-id]").forEach(row => row.classList.toggle("selected", row.dataset.id === id));
   $("#selectedInsight").textContent = game.signal;
   const score = Math.max(55, Math.min(96, Math.round(70 + game.growth / 3 + (game.rating - 4) * 8)));
@@ -208,40 +218,94 @@ function formatDateTime(value) {
   }).format(date);
 }
 
+function parseTrendDate(value) {
+  if (!value) return NaN;
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) return Date.parse(`${value.slice(0, 10)}T00:00:00Z`);
+  const match = /^(\d{1,2})\/(\d{1,2})$/.exec(value);
+  if (!match) return Date.parse(value);
+  return Date.UTC(state.referenceYear, Number(match[1]) - 1, Number(match[2]));
+}
+
+function inputDate(timestamp) {
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString().slice(0, 10) : "";
+}
+
+function dateLabel(value) {
+  if (!value) return "未设置";
+  const timestamp = parseTrendDate(value);
+  if (!Number.isFinite(timestamp)) return value;
+  return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", timeZone: "UTC" }).format(timestamp);
+}
+
+function trendBounds() {
+  const timestamps = (state.selected?.trend || []).map(point => parseTrendDate(point.date)).filter(Number.isFinite);
+  return timestamps.length ? { min: Math.min(...timestamps), max: Math.max(...timestamps) } : { min: NaN, max: NaN };
+}
+
+function syncDateControls() {
+  const bounds = trendBounds();
+  const start = $("#trendStartDate");
+  const end = $("#trendEndDate");
+  const min = inputDate(bounds.min);
+  const max = inputDate(bounds.max);
+  for (const input of [start, end]) { input.min = min; input.max = max; }
+  if (state.rangeMode === "custom" && state.startDate && state.endDate) {
+    start.value = state.startDate;
+    end.value = state.endDate;
+    return;
+  }
+  applyPresetRange(state.rangeDays, false);
+}
+
+function applyPresetRange(days, shouldRender = true) {
+  const bounds = trendBounds();
+  state.rangeDays = days;
+  state.rangeMode = "preset";
+  state.endDate = inputDate(bounds.max);
+  state.startDate = days === null ? inputDate(bounds.min) : inputDate(Math.max(bounds.min, bounds.max - days * 86400000));
+  $("#trendStartDate").value = state.startDate;
+  $("#trendEndDate").value = state.endDate;
+  $("#trendRangeStatus").textContent = "";
+  document.querySelectorAll(".range-tabs button").forEach(item => {
+    const active = (days === null ? "all" : String(days)) === item.dataset.range;
+    item.classList.toggle("active", active);
+    item.setAttribute("aria-pressed", String(active));
+  });
+  if (shouldRender) renderSelectedTrend();
+}
+
 function updateChartSummary() {
   if (!state.selected) return;
   const game = state.selected;
   const points = selectedTrendPoints();
-  const latest = points.at(-1);
-  const first = points[0];
-  const rangeName = state.rangeDays === null ? "全部" : `${state.rangeDays}天`;
+  const validPoints = points.filter(point => hasValue(point[state.metric]));
+  const latest = validPoints.at(-1);
+  const first = validPoints[0];
+  const rangeName = state.startDate && state.endDate ? `${dateLabel(state.startDate)} 至 ${dateLabel(state.endDate)}` : "未设置区间";
   const percentChange = (key) => {
-    if (!first || !latest || first[key] === 0 || points.length < 2) return "样本不足";
+    if (!first || !latest || Number(first[key]) === 0 || validPoints.length < 2) return "该区间暂无足够数据";
     const value = ((latest[key] - first[key]) / first[key]) * 100;
     return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
   };
-  const rankChange = first && latest ? first.rank - latest.rank : 0;
+  const rankChange = first && latest ? Number(first.rank) - Number(latest.rank) : 0;
   const metricCopy = {
-    revenue: { title: "收入走势", value: `${formatNumber(latest?.revenue ?? game.revenue)} 万元`, delta: percentChange("revenue") },
-    downloads: { title: "下载走势", value: `${formatNumber(latest?.downloads ?? game.downloads)} 万次`, delta: percentChange("downloads") },
-    rank: { title: "免费榜走势", value: `第 ${latest?.rank ?? game.free_rank} 名`, delta: points.length < 2 ? "样本不足" : `${rankChange >= 0 ? "上升" : "下降"} ${Math.abs(rankChange)} 位` },
+    revenue: { title: "收入走势", value: hasValue(latest?.revenue) ? `${formatNumber(latest.revenue)} 万元` : "暂无数据", delta: percentChange("revenue") },
+    downloads: { title: "下载走势", value: hasValue(latest?.downloads) ? `${formatNumber(latest.downloads)} 万次` : "暂无数据", delta: percentChange("downloads") },
+    rank: { title: "免费榜走势", value: hasValue(latest?.rank) ? `第 ${formatNumber(latest.rank)} 名` : "暂无数据", delta: validPoints.length < 2 ? "该区间暂无足够数据" : `${rankChange >= 0 ? "上升" : "下降"} ${Math.abs(rankChange)} 位` },
   }[state.metric];
   $("#chartTitle").textContent = `${game.name} · ${metricCopy.title}`;
   $("#chartRevenue").textContent = metricCopy.value;
-  $("#chartDelta").textContent = `${metricCopy.delta} · ${rangeName} · ${points.length} 个观测点`;
+  $("#chartDelta").textContent = `${metricCopy.delta} · ${rangeName} · ${validPoints.length}/${points.length} 个有效观测点`;
 }
 
 function selectedTrendPoints() {
   const points = state.selected?.trend || [];
-  if (state.rangeDays === null || points.length < 2) return points;
-  const parseDate = (value) => {
-    if (/^\d{4}-\d{2}-\d{2}/.test(value)) return Date.parse(value);
-    const [month, day] = value.split("/").map(Number);
-    return Date.UTC(new Date().getUTCFullYear(), month - 1, day);
-  };
-  const latest = parseDate(points.at(-1).date);
-  const cutoff = latest - state.rangeDays * 24 * 60 * 60 * 1000;
-  return points.filter((point) => parseDate(point.date) >= cutoff);
+  const start = parseTrendDate(state.startDate);
+  const end = parseTrendDate(state.endDate);
+  return points.filter((point) => {
+    const timestamp = parseTrendDate(point.date);
+    return Number.isFinite(timestamp) && (!Number.isFinite(start) || timestamp >= start) && (!Number.isFinite(end) || timestamp <= end);
+  });
 }
 
 function renderSelectedTrend() {
@@ -265,22 +329,43 @@ function drawChart(points, metric = "revenue") {
   ctx.strokeStyle = "#e7ece9";
   ctx.lineWidth = 1;
   for (let i = 0; i < 5; i++) { const y = pad.y + i * 43; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
-  const makePath = (key, color) => {
-    const values = points.map(p => p[key]);
-    const min = Math.min(...values) * .9;
-    const max = Math.max(...values) * 1.08;
+  const styles = {
+    revenue: { color: "#136f52", dash: [] },
+    downloads: { color: "#ff7a45", dash: [2, 5] },
+    rank: { color: "#7257d5", dash: [9, 5] },
+  };
+  const makePath = (key, style) => {
+    const values = points.map(p => hasValue(p[key]) ? Number(p[key]) : null);
+    const available = values.filter(value => value !== null);
+    if (!available.length) return false;
+    const min = Math.min(...available) * .9;
+    const max = Math.max(...available) * 1.08;
+    let drawing = false;
     ctx.beginPath();
     values.forEach((value, index) => {
+      if (value === null) { drawing = false; return; }
       const x = values.length === 1 ? width / 2 : pad.x + index * ((width - pad.x * 2) / (values.length - 1));
       const progress = (value - min) / (max - min || 1);
       const y = key === "rank" ? pad.y + progress * (height - pad.y - pad.bottom) : height - pad.bottom - progress * (height - pad.y - pad.bottom);
-      index ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      drawing ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      drawing = true;
     });
-    ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
+    ctx.strokeStyle = style.color; ctx.setLineDash(style.dash); ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
+    ctx.setLineDash([]);
+    values.forEach((value, index) => {
+      if (value === null) return;
+      const x = values.length === 1 ? width / 2 : pad.x + index * ((width - pad.x * 2) / (values.length - 1));
+      const progress = (value - min) / (max - min || 1);
+      const y = key === "rank" ? pad.y + progress * (height - pad.y - pad.bottom) : height - pad.bottom - progress * (height - pad.y - pad.bottom);
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fillStyle = style.color; ctx.fill();
+    });
+    return true;
   };
-  const colors = { revenue: "#136f52", downloads: "#ff7a45", rank: "#7257d5" };
-  makePath(metric, colors[metric]);
-  $("#chartAxis").innerHTML = points.map(point => `<span>${point.date}</span>`).join("");
+  const hasLine = makePath(metric, styles[metric]);
+  const empty = $("#chartEmptyState");
+  empty.hidden = hasLine;
+  empty.textContent = points.length ? `所选区间暂无${{ revenue: "收入", downloads: "下载", rank: "免费榜" }[metric]}数据` : "所选时间区间暂无观测数据";
+  $("#chartAxis").innerHTML = points.length ? points.map(point => `<span>${dateLabel(point.date)}</span>`).join("") : `<span>${dateLabel(state.startDate)}</span><span>${dateLabel(state.endDate)}</span>`;
 }
 
 let debounce;
@@ -296,14 +381,26 @@ document.querySelectorAll(".metric-tabs button").forEach(button => button.addEve
   renderSelectedTrend();
 }));
 document.querySelectorAll(".range-tabs button").forEach(button => button.addEventListener("click", () => {
-  state.rangeDays = button.dataset.range === "all" ? null : Number(button.dataset.range);
-  document.querySelectorAll(".range-tabs button").forEach(item => {
-    const active = item === button;
-    item.classList.toggle("active", active);
-    item.setAttribute("aria-pressed", String(active));
-  });
-  renderSelectedTrend();
+  applyPresetRange(button.dataset.range === "all" ? null : Number(button.dataset.range));
 }));
+$("#trendDateForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const start = $("#trendStartDate").value;
+  const end = $("#trendEndDate").value;
+  if (!start || !end || parseTrendDate(start) > parseTrendDate(end)) {
+    $("#trendRangeStatus").textContent = "请选择有效的开始和结束日期";
+    return;
+  }
+  state.startDate = start;
+  state.endDate = end;
+  state.rangeMode = "custom";
+  document.querySelectorAll(".range-tabs button").forEach(item => {
+    item.classList.remove("active");
+    item.setAttribute("aria-pressed", "false");
+  });
+  $("#trendRangeStatus").textContent = "已应用自定义区间";
+  renderSelectedTrend();
+});
 $("#assistantForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const query = $("#assistantInput").value.trim();
