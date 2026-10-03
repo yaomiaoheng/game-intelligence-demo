@@ -1,0 +1,18 @@
+/* Shared readability layer. Loaded last so feature styles keep their layout semantics. */
+body{font-size:16px;line-height:1.55}
+.brand{font-size:20px}.brand small{font-size:12px}.brand-mark{font-size:15px}
+.nav-item{font-size:15px}.sidebar-foot p,.live{font-size:12px}.sidebar-foot strong{font-size:14px}
+.eyebrow,.kicker{font-size:12px}.topbar h1{font-size:24px}.updated{font-size:13px}
+.notice,.source-meta{font-size:13px}.mini-button{font-size:13px}
+.mini-live-banner h3{font-size:18px}.mini-live-banner p,.mini-scope-note{font-size:13px}
+.mini-source-head p,.mini-sync-heading p{font-size:12px}.mini-rank-title{font-size:15px}
+.card-heading h3,.section-heading h2{font-size:21px}.brief-card li,.hero-copy a{font-size:14px}
+.metric-grid span,.metric-grid small,.result-count{font-size:12px}
+th{font-size:11px}td{font-size:13px}.game-name strong{font-size:14px}.tag,.status{font-size:11px}
+.legend,.chart-axis,.score-bars label,.score-ring span{font-size:11px}.insight{font-size:13px}
+.intel-card p,.intel-card li{font-size:13px}.intel-card small{font-size:11px}.intel-card li strong{font-size:13px}
+.decision-form label,.decision-helper,.decision-empty p,.decision-source-strip,.decision-plan p{font-size:12px}
+.decision-form input,.decision-form select,.decision-form textarea,.decision-chip,.decision-button{font-size:13px}
+.decision-game-context strong{font-size:13px}.decision-game-context span,.decision-game-context dd{font-size:12px}.decision-game-context dt{font-size:11px}
+.selected-game-reference{font-size:12px}
+@media(max-width:700px){.topbar h1{font-size:20px}.nav-item{font-size:16px}.mini-live-banner p,.mini-scope-note{font-size:13px}}

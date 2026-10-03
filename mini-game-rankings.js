@@ -44,13 +44,13 @@
   function renderBoard(type, rows) {
     const sourceDate = rows[0]?.source_date || "历史未标注";
     return `<section class="mini-rank-group">
-      <h4 class="mini-rank-title">${escapeHTML(boardNames[type] || type)} <span class="mini-date-tag">观测日 ${escapeHTML(sourceDate)}</span></h4>
+      <h4 class="mini-rank-title">${escapeHTML(boardNames[type] || type)} <span class="mini-date-tag">观测日 ${escapeHTML(sourceDate)}</span><span class="mini-count-tag">当前 ${rows.length} 条</span></h4>
       <div class="mini-table-wrap"><table class="mini-table"><thead><tr><th>排名</th><th>游戏 / App ID</th><th>发行商</th><th>来源排名变化</th></tr></thead><tbody>
         ${rows.map(row => `<tr>
-          <td><span class="mini-rank-badge">${escapeHTML(row.rank ?? "—")}</span></td>
-          <td><span class="mini-game-cell"><strong>${escapeHTML(row.game_name || "名称未提供")}</strong><small>${escapeHTML(row.external_id || "App ID 未提供")}</small>${row.description ? `<small title="${escapeHTML(row.description)}">${escapeHTML(row.description)}</small>` : ""}</span></td>
-          <td>${escapeHTML(row.publisher || "来源未提供")}</td>
-          <td>${rankChange(row)}</td>
+          <td data-label="排名"><span class="mini-rank-badge">${escapeHTML(row.rank ?? "—")}</span></td>
+          <td data-label="游戏 / App ID"><span class="mini-game-cell"><strong>${escapeHTML(row.game_name || "名称未提供")}</strong><small>${escapeHTML(row.external_id || "App ID 未提供")}</small>${row.description ? `<small title="${escapeHTML(row.description)}">${escapeHTML(row.description)}</small>` : ""}</span></td>
+          <td data-label="发行商">${escapeHTML(row.publisher || "来源未提供")}</td>
+          <td data-label="排名变化">${rankChange(row)}</td>
         </tr>`).join("")}
       </tbody></table></div>
       <p class="mini-time">最近成功采集：${escapeHTML(formatTime(rows[0]?.observed_at))}</p>
@@ -107,7 +107,8 @@
     document.getElementById("miniConnectionCopy").innerHTML = `${escapeHTML(status.update_time || "由源站维护采集周期")}<br>${connection.state === "published_snapshot" ? "页面每 5 秒检查已发布快照，发布任务约每 10 分钟检查上游；不是每 5 秒采集。" : "页面每 5 秒读取公开快照，不向 DataEye 重复取数；同日成功榜单由源站复用缓存。"}${connection.warning ? `<br>${escapeHTML(connection.warning)}` : ""}`;
     const calls = status.calls_today ?? "—";
     const limit = config.daily_call_limit ?? "—";
-    document.getElementById("miniScopeNote").textContent = `本页只展示 DataEye 真实数据。当前请求观测日：${status.period || "—"} · 今日已请求 ${calls}/${limit} 次。来源未提供收入、下载、素材数时不补造；显示旧观测日表示新日数据尚未成功采集。`;
+    const maxRows = data.display?.max_rows_per_board || 100;
+    document.getElementById("miniScopeNote").textContent = `本页只展示 DataEye 真实数据。当前请求观测日：${status.period || "—"} · 今日已请求 ${calls}/${limit} 次。每榜按来源实际返回展示，最多 ${maxRows} 条，不足时不补齐；来源未提供收入、下载、素材数时不补造。`;
     for (const provider of ["douyin", "wechat"]) renderProvider(provider, data.providers?.[provider], config.boards?.[provider] || []);
     renderRuns(status.last_runs);
     loaded = true;
