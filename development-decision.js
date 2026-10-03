@@ -4,7 +4,7 @@
   const form = document.querySelector("#developmentDecisionForm");
   if (!form) return;
 
-  const decisionState = { result: null, selectedIndex: 0, evidenceType: "supporting" };
+  const decisionState = { result: null, selectedIndex: 0, evidenceType: "supporting", games: [], selectedGame: null };
   const byId = (id) => document.getElementById(id);
   const escapeHTML = (value) => String(value ?? "").replace(/[&<>'"]/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;",
@@ -37,6 +37,7 @@
     const data = new FormData(form);
     const monetization = data.get("monetization");
     return {
+      selected_game_id: data.get("selected_game_id"),
       market: data.get("market"),
       platform: data.get("platform"),
       limit: 3,
@@ -53,6 +54,73 @@
       },
       preferences: {},
     };
+  }
+
+  function rankMovement(game) {
+    if (game.new_entry) return "新进榜";
+    if (!present(game.rank_change) || Number(game.rank_change) === 0) return "持平";
+    return `${Number(game.rank_change) > 0 ? "上升" : "下降"} ${Math.abs(Number(game.rank_change))} 位`;
+  }
+
+  function renderSelectedGame() {
+    const selector = byId("developmentDecisionGame");
+    const context = byId("developmentDecisionGameContext");
+    decisionState.selectedGame = decisionState.games.find((item) => item.id === selector.value) || null;
+    const game = decisionState.selectedGame;
+    context.classList.remove("error");
+    if (!game) {
+      context.innerHTML = "<strong>请先选择一个小游戏</strong><span>未选择时不会生成针对具体产品的分析结论。</span>";
+      return;
+    }
+    form.elements.platform.value = "Mobile";
+    context.innerHTML = `<strong>${text(game.game_name)} · ${text(game.provider_label)}</strong><dl>
+      <div><dt>榜单与名次</dt><dd>${text(game.primary_board_label)} · 第 ${text(game.rank)} 名</dd></div>
+      <div><dt>排名变化</dt><dd>${text(rankMovement(game))}</dd></div>
+      <div><dt>观察日期</dt><dd>${text(game.as_of)}</dd></div>
+      <div><dt>数据来源</dt><dd>${text(game.source?.label)}</dd></div>
+    </dl><span>该榜单事实仅作为观察上下文，不直接参与开发方向评分。</span>`;
+  }
+
+  function catalogFromIntelligence(result) {
+    const providerLabels = { douyin: "抖音小游戏", wechat: "微信小游戏" };
+    const boardLabels = { bestsellerList: "畅销榜", popularityList: "人气榜", freshGameList: "新游榜", mostPlayedList: "畅玩榜" };
+    return list(result.items).map((item) => ({
+      ...item,
+      provider_label: providerLabels[item.provider] || item.provider,
+      primary_board: item.board,
+      primary_board_label: boardLabels[item.board] || item.board,
+      source: { id: "dataeye-mini-rankings", label: list(item.sources)[0] || "DataEye 官方 MCP · 小游戏榜单" },
+      estimated: false,
+    }));
+  }
+
+  async function loadMiniGames() {
+    const selector = byId("developmentDecisionGame");
+    const context = byId("developmentDecisionGameContext");
+    try {
+      let response = await fetch("/api/development-decision/mini-games");
+      let result = await response.json();
+      if (response.ok) decisionState.games = list(result.items);
+      else {
+        response = await fetch("/api/mini-game-intelligence?provider=all");
+        result = await response.json();
+        if (!response.ok) throw new Error(result.error?.message || result.error || "小游戏榜单读取失败");
+        decisionState.games = catalogFromIntelligence(result);
+      }
+      selector.innerHTML = '<option value="">请选择要分析的小游戏</option>' + decisionState.games.map((game) =>
+        `<option value="${escapeHTML(game.id)}">${text(game.game_name)} · ${text(game.provider_label)} · ${text(game.primary_board_label)} #${text(game.rank)}</option>`
+      ).join("");
+      selector.disabled = !decisionState.games.length;
+      if (!decisionState.games.length) {
+        context.classList.add("error");
+        context.innerHTML = "<strong>暂无可选真实小游戏</strong><span>当前榜单快照没有可用产品，恢复数据后再进行具体产品分析。</span>";
+      }
+    } catch (error) {
+      selector.innerHTML = '<option value="">真实小游戏榜单暂不可用</option>';
+      selector.disabled = true;
+      context.classList.add("error");
+      context.innerHTML = `<strong>小游戏选择器加载失败</strong><span>${text(error.message)}；未使用 Mock 产品代替。</span>`;
+    }
   }
 
   function recommendationLevel(score) {
@@ -95,6 +163,7 @@
       : `团队适配结论：${({ supported: "适配", conditional: "有条件适配", not_recommended: "当前不适配" })[recommendation.feasibility_status] || "待验证"}`;
 
     byId("selectedRecommendation").innerHTML = `
+      ${recommendation.selected_game_context ? `<p class="selected-game-reference">分析对象：${text(recommendation.selected_game_context.game_name)} · ${text(recommendation.selected_game_context.provider_label)} · ${text(recommendation.selected_game_context.primary_board_label)} #${text(recommendation.selected_game_context.rank)}</p>` : ""}
       <div class="recommendation-overview">
         <div><span class="recommendation-genre">${text(recommendation.genre)}</span><h4>${text(recommendation.title)}</h4><p>${text(concept.positioning)}</p></div>
         <span class="recommendation-level ${scoreClass(score.opportunity)}">${level}</span>
@@ -208,6 +277,11 @@
     event.preventDefault();
     const status = byId("developmentDecisionStatus");
     const submit = form.querySelector("button[type='submit']");
+    if (!decisionState.selectedGame) {
+      status.textContent = "请先选择一个真实榜单中的小游戏，再开始分析。";
+      byId("developmentDecisionGame").focus();
+      return;
+    }
     status.textContent = "正在组合市场证据与团队约束…";
     submit.disabled = true;
     try {
@@ -216,6 +290,16 @@
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error?.message || result.error || "分析请求失败");
+      if (result.status === "insufficient_evidence" && !list(result.recommendations).length) {
+        decisionState.result = null;
+        byId("decisionEmptyState").hidden = false;
+        byId("evidenceEmptyState").hidden = false;
+        byId("decisionResultContent").hidden = true;
+        byId("decisionEvidenceContent").hidden = true;
+        byId("decisionEmptyState").querySelector("span").textContent = "当前只有榜单观察，缺少足够独立来源和已审核的产品证据，暂不生成开发推荐。";
+        status.textContent = `已选择 ${decisionState.selectedGame.game_name}；证据不足，建议继续采集和验证。这不是采集失败。`;
+        return;
+      }
       if (!list(result.recommendations).length) throw new Error("当前筛选条件下暂无可推荐方向，请调整目标市场或平台");
       decisionState.result = result;
       decisionState.selectedIndex = 0;
@@ -235,6 +319,7 @@
   }
 
   form.addEventListener("submit", analyze);
+  byId("developmentDecisionGame").addEventListener("change", renderSelectedGame);
   byId("recommendationTabs").addEventListener("click", (event) => {
     const button = event.target.closest("[data-recommendation-index]");
     if (!button) return;
@@ -257,4 +342,5 @@
     byId("developmentProposal").hidden = true;
     byId("development-decision").scrollIntoView({ behavior: "smooth", block: "start" });
   });
+  loadMiniGames();
 })();

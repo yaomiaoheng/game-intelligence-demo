@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="./product-analysis.css" />
   <link rel="stylesheet" href="./mini-game-rankings.css" />
   <link rel="stylesheet" href="./mini-game-intelligence.css" />
+  <link rel="stylesheet" href="./page-layout.css" />
 </head>
 <body>
   <div class="shell">
@@ -34,7 +35,7 @@
       <header class="topbar">
         <button class="menu-button" aria-label="打开菜单">☰</button>
         <div><p class="eyebrow">MARKET INTELLIGENCE / 2026</p><h1>游戏商业机会雷达</h1></div>
-        <div class="top-actions"><span class="updated" id="updatedAt">数据同步中</span><button class="icon-button" aria-label="通知">●</button><span class="avatar">策</span></div>
+        <div class="top-actions"><span class="updated" id="updatedAt">数据同步中</span></div>
       </header>
 
       <section class="mini-ranking-view" id="mini-game-rankings" aria-labelledby="miniRankingTitle" hidden>
@@ -230,6 +231,15 @@
             <aside class="decision-card decision-constraints" aria-labelledby="constraintTitle">
               <div class="decision-card-title"><span>01</span><div><small>TEAM CONSTRAINTS</small><h3 id="constraintTitle">开发约束</h3></div></div>
               <form id="developmentDecisionForm">
+                <label class="decision-game-picker">分析小游戏
+                  <select id="developmentDecisionGame" name="selected_game_id" required disabled>
+                    <option value="">正在读取真实小游戏榜单…</option>
+                  </select>
+                </label>
+                <article class="decision-game-context" id="developmentDecisionGameContext" aria-live="polite">
+                  <strong>请先选择一个小游戏</strong>
+                  <span>选择后将带入平台、榜单、名次、观察日期和来源；不会把榜单名次当作收入或成功概率。</span>
+                </article>
                 <div class="decision-field-row">
                   <label>目标市场<select name="market" required><option value="CN">中国市场</option><option value="GLOBAL">全球市场</option></select></label>
                   <label>目标平台<select name="platform" required><option value="PC">PC</option><option value="Mobile">移动端</option><option value="Console">主机</option></select></label>
@@ -301,5 +311,6 @@
   <script src="./product-analysis.js"></script>
   <script src="./mini-game-rankings.js"></script>
   <script src="./mini-game-intelligence.js"></script>
+  <script src="./page-router.js"></script>
 </body>
 </html>
