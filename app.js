@@ -191,8 +191,8 @@ async function selectGame(id) {
   const score = Math.max(55, Math.min(96, Math.round(70 + game.growth / 3 + (game.rating - 4) * 8)));
   $("#scoreValue").textContent = score;
   $(".score-ring").style.background = `conic-gradient(var(--green) 0 ${score}%, #e7ece9 ${score}%)`;
-  renderSelectedTrend();
   renderIntelligence(intelligence);
+  renderSelectedTrend();
 }
 
 function renderIntelligence(intelligence) {
@@ -313,6 +313,58 @@ function renderSelectedTrend() {
   const points = selectedTrendPoints();
   updateChartSummary();
   drawChart(points, state.metric);
+  renderTrendTable(points);
+  updateRangeTrendSummary(points);
+}
+
+function escapeHTML(value) {
+  return String(value).replace(/[&<>"']/g, character => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[character]);
+}
+
+function renderTrendTable(points) {
+  const rows = points.map(point => {
+    const cells = {
+      revenue: valueCell(point.revenue),
+      downloads: valueCell(point.downloads),
+      rank: hasValue(point.rank) ? `第 ${formatNumber(point.rank)} 名` : '<span class="missing-value">暂无数据</span>',
+    };
+    return `<tr><td>${escapeHTML(dateLabel(point.date))}</td>${["revenue", "downloads", "rank"].map(key =>
+      `<td class="${state.metric === key ? "selected-value" : ""}">${cells[key]}</td>`
+    ).join("")}</tr>`;
+  }).join("");
+  $("#trendDataRows").innerHTML = rows || '<tr><td class="empty-row" colspan="4">所选时间区间暂无观测数据</td></tr>';
+  $("#trendDataCount").textContent = `${points.length} 条`;
+  document.querySelectorAll("#trendDataTable th[data-column]").forEach(header => {
+    header.classList.toggle("active-column", header.dataset.column === state.metric);
+  });
+}
+
+function updateRangeTrendSummary(points) {
+  const labels = { revenue: "收入", downloads: "下载", rank: "免费榜排名" };
+  const valid = points.filter(point => hasValue(point[state.metric]));
+  const range = state.startDate && state.endDate ? `${dateLabel(state.startDate)} 至 ${dateLabel(state.endDate)}` : "当前区间";
+  let summary;
+  if (!valid.length) {
+    summary = `该时间区间没有可用的${labels[state.metric]}观测，暂不生成趋势结论。`;
+  } else if (valid.length === 1) {
+    summary = `该时间区间只有 1 个有效观测点，暂时无法判断${labels[state.metric]}趋势。`;
+  } else if (state.metric === "rank") {
+    const change = Number(valid[0].rank) - Number(valid.at(-1).rank);
+    summary = change === 0 ? "免费榜排名在所选区间保持不变。" : `免费榜排名在所选区间${change > 0 ? "上升" : "下降"} ${Math.abs(change)} 位。`;
+  } else {
+    const first = Number(valid[0][state.metric]);
+    const latest = Number(valid.at(-1)[state.metric]);
+    if (first === 0) {
+      summary = `${labels[state.metric]}基期为 0，不能计算可靠增长率。`;
+    } else {
+      const change = ((latest - first) / first) * 100;
+      summary = `${labels[state.metric]}在所选区间${change >= 0 ? "增长" : "下降"} ${Math.abs(change).toFixed(1)}%。`;
+    }
+  }
+  $("#trendSummary").textContent = summary;
+  $("#trendEvidence").textContent = `证据：${labels[state.metric]} · ${range} · ${valid.length}/${points.length} 个有效观测点`;
 }
 
 function drawChart(points, metric = "revenue") {
