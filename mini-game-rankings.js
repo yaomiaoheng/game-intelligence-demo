@@ -99,10 +99,12 @@
     banner.classList.remove("error");
     document.getElementById("miniConnectionTitle").textContent = connection.stale
       ? "真实快照连接中断 · 正在展示上次成功结果"
-      : status.configured
+      : connection.state === "published_snapshot"
+        ? "真实榜单已发布快照 · 非实时采集"
+        : status.configured
         ? `官方 MCP 已连接 · 自动更新${config.enabled ? "已开启" : "已关闭"}`
         : "源站真实快照可读 · 官方 MCP 尚未配置";
-    document.getElementById("miniConnectionCopy").innerHTML = `${escapeHTML(status.update_time || "由源站维护采集周期")}<br>页面每 5 秒读取公开快照，不向 DataEye 重复取数；同日成功榜单由源站复用缓存。${connection.warning ? `<br>${escapeHTML(connection.warning)}` : ""}`;
+    document.getElementById("miniConnectionCopy").innerHTML = `${escapeHTML(status.update_time || "由源站维护采集周期")}<br>${connection.state === "published_snapshot" ? "页面每 5 秒检查已发布快照，发布任务约每 10 分钟检查上游；不是每 5 秒采集。" : "页面每 5 秒读取公开快照，不向 DataEye 重复取数；同日成功榜单由源站复用缓存。"}${connection.warning ? `<br>${escapeHTML(connection.warning)}` : ""}`;
     const calls = status.calls_today ?? "—";
     const limit = config.daily_call_limit ?? "—";
     document.getElementById("miniScopeNote").textContent = `本页只展示 DataEye 真实数据。当前请求观测日：${status.period || "—"} · 今日已请求 ${calls}/${limit} 次。来源未提供收入、下载、素材数时不补造；显示旧观测日表示新日数据尚未成功采集。`;

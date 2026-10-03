@@ -4,7 +4,7 @@ const json = (payload, status = 200) => new Response(JSON.stringify(payload), {
   status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
 });
 
-const mockWorker = {
+const publicWorker = {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/api/health") return json({ ok: true, service: "game-intel-public", data_mode: "real" });
@@ -14,7 +14,6 @@ const mockWorker = {
       notice: "暂无获准公开展示的真实游戏数据；缺失值不补零，不使用演示数据。",
     });
     if (url.pathname === "/api/games") return json({ items: [] });
-    if (url.pathname === "/api/mini-game-rankings") return json({ error: { code: "MINI_RANKINGS_UNAVAILABLE", message: "公开静态站暂无安全的 HTTPS 快照代理；请在云端 GamePulse 站查看实时榜单。" } }, 503);
     if (url.pathname === "/api/opportunities/analyze" && request.method === "POST") return json({
       recommendations: [], sources: [], updated_at: null, status: "insufficient_evidence",
       methodology: { version: "real-evidence-gate-v1", weights: {}, limitations: ["暂无足够已授权、可公开的真实证据。"], missing_value_policy: "缺失不补零、不参与评分", recommendation_language: "证据不足，建议继续采集" },
@@ -33,7 +32,12 @@ window.fetch = (input, init) => {
     ? input
     : new Request(new URL(String(input), window.location.href), init);
   if (new URL(request.url).pathname.startsWith('/api/')) {
-    return mockWorker.fetch(request, {});
+    if (new URL(request.url).pathname === '/api/mini-game-rankings') {
+      const snapshotUrl = new URL('./mini-ranking-snapshot.json', window.location.href);
+      snapshotUrl.searchParams.set('_', String(Date.now()));
+      return nativeFetch(new Request(snapshotUrl, { cache: 'no-store' }));
+    }
+    return publicWorker.fetch(request, {});
   }
   return nativeFetch(input, init);
 };

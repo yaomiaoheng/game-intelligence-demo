@@ -1,0 +1,28 @@
+name: Update public mini-game snapshot
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: mini-game-snapshot
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Fetch and sanitize public mini-game boards
+        run: python scripts/update_mini_snapshot.py
+      - name: Publish only changed snapshot
+        run: |
+          if git diff --quiet -- mini-ranking-snapshot.json; then exit 0; fi
+          git config user.name 'gamepulse-snapshot-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add mini-ranking-snapshot.json
+          git commit -m 'Refresh public mini-game ranking snapshot'
+          git push
