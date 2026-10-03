@@ -3,13 +3,14 @@
 
   const content = document.getElementById("overview");
   const topbarTitle = document.querySelector(".topbar h1");
-  if (!content || !topbarTitle) return;
+  if (!content) return;
 
   const pageMap = {
     overview: { title: "游戏商业机会雷达", selectors: ["#dataNotice", ".hero-grid", ".metric-grid"] },
     games: { title: "游戏雷达", selectors: ["#games", "#product-analysis"] },
     opportunities: { title: "机会洞察", selectors: ["#opportunities", ".intel-grid"] },
     "development-decision": { title: "开发决策", selectors: ["#development-decision"] },
+    "data-sources": { title: "数据来源", selectors: ["#data-sources"] },
     assistant: { title: "智能分析", selectors: ["#assistant"] },
   };
   const externalRoutes = new Set(["mini-game-rankings", "mini-game-intelligence"]);
@@ -25,7 +26,7 @@
       child.hidden = !external && !pageMap[route]?.selectors.some((selector) => child.matches(selector));
     });
     document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item.getAttribute("href") === `#${route}`));
-    topbarTitle.textContent = external ? externalTitles[route] : pageMap[route].title;
+    if (topbarTitle) topbarTitle.textContent = external ? externalTitles[route] : pageMap[route].title;
     document.body.dataset.page = route;
     document.getElementById("development-decision")?.classList.toggle("route-page-active", route === "development-decision");
     document.querySelector(".sidebar")?.classList.remove("open");

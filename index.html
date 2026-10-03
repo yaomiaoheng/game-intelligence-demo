@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="./mini-game-intelligence.css" />
   <link rel="stylesheet" href="./page-layout.css" />
   <link rel="stylesheet" href="./readability.css" />
+  <link rel="stylesheet" href="./interface-layout.css" />
 </head>
 <body>
   <div class="shell">
@@ -24,6 +25,7 @@
         <a class="nav-item" href="#mini-game-intelligence"><span>ϟ</span>小游戏情报</a>
         <a class="nav-item" href="#opportunities"><span>⌁</span>机会洞察</a>
         <a class="nav-item" href="#development-decision"><span>◆</span>开发决策</a>
+        <a class="nav-item" href="#data-sources"><span>◉</span>数据来源</a>
         <a class="nav-item" href="#assistant"><span>✦</span>智能分析</a>
       </nav>
       <div class="sidebar-foot">
@@ -33,11 +35,9 @@
     </aside>
 
     <main>
-      <header class="topbar">
-        <button class="menu-button" aria-label="打开菜单">☰</button>
-        <div><p class="eyebrow">MARKET INTELLIGENCE / 2026</p><h1>游戏商业机会雷达</h1></div>
-        <div class="top-actions"><span class="updated" id="updatedAt">数据同步中</span></div>
-      </header>
+      <div class="mobile-navigation" aria-label="移动端导航">
+        <button class="menu-button" aria-label="打开菜单">☰</button><strong>GamePulse</strong>
+      </div>
 
       <section class="mini-ranking-view" id="mini-game-rankings" aria-labelledby="miniRankingTitle" hidden>
         <div class="mini-page-heading">
@@ -162,7 +162,7 @@
       </section>
 
       <section class="content" id="overview">
-        <div class="notice" id="dataNotice">正在核验真实数据状态。</div>
+        <div class="notice" id="dataNotice"><span id="dataNoticeText">正在核验真实数据状态。</span><time class="updated" id="updatedAt">数据同步中</time></div>
         <div class="hero-grid">
           <article class="hero-card">
             <div class="hero-copy"><span class="signal">数据状态</span><h2>游戏市场观察<br /><em>等待充分证据</em></h2><p>只根据已授权的真实观测生成结论；缺少数据时保持空白，不使用演示值。</p><a href="#opportunities">查看证据要求 <span>→</span></a></div>
@@ -265,7 +265,8 @@
               </form>
             </aside>
 
-            <section class="decision-card decision-results" aria-labelledby="recommendationTitle">
+            <div class="decision-analysis-stack">
+              <section class="decision-card decision-results" aria-labelledby="recommendationTitle">
               <div class="decision-card-title"><span>02</span><div><small>RECOMMENDATIONS</small><h3 id="recommendationTitle">推荐方向与评分</h3></div></div>
               <div class="decision-placeholder" id="decisionEmptyState"><b>等待生成推荐</b><span>分析后将在这里展示推荐排行、可信机会分与七项评分依据。</span></div>
               <div id="decisionResultContent" hidden>
@@ -273,9 +274,9 @@
                 <article class="selected-recommendation" id="selectedRecommendation"></article>
                 <div class="decision-score-grid" id="decisionScoreGrid"></div>
               </div>
-            </section>
+              </section>
 
-            <aside class="decision-card decision-evidence" aria-labelledby="evidenceTitle">
+              <aside class="decision-card decision-evidence" aria-labelledby="evidenceTitle">
               <div class="decision-card-title"><span>03</span><div><small>EVIDENCE LEDGER</small><h3 id="evidenceTitle">证据与验证</h3></div></div>
               <div class="decision-placeholder" id="evidenceEmptyState"><b>证据账本尚未生成</b><span>支持、反面与缺失证据将同时呈现，避免只看有利信息。</span></div>
               <div id="decisionEvidenceContent" hidden>
@@ -289,7 +290,8 @@
                 <div class="decision-source-meta"><span id="decisionSource">数据来源：—</span><time id="decisionUpdatedAt">更新时间：—</time></div>
                 <button class="decision-secondary" id="showDevelopmentProposal" type="button">查看完整开发方案 <span>→</span></button>
               </div>
-            </aside>
+              </aside>
+            </div>
           </div>
 
           <section class="development-proposal" id="developmentProposal" aria-labelledby="proposalTitle" hidden>
@@ -298,10 +300,24 @@
           </section>
         </section>
 
-        <section class="assistant-panel" id="assistant">
-          <div><span class="assistant-icon">✦</span><div><span class="kicker">INTELLIGENCE COPILOT</span><h2>问问情报助手</h2><p>支持网页与钉钉机器人使用相同的数据查询能力。</p></div></div>
-          <form id="assistantForm"><input id="assistantInput" placeholder="例如：最近哪款小游戏最火？" required /><button>分析 <span>→</span></button></form>
-          <div class="answer" id="assistantAnswer">输入游戏数据问题；缺少真实证据时会明确说明暂无数据。</div>
+        <section class="data-sources-page" id="data-sources" aria-labelledby="dataSourcesTitle">
+          <div class="workspace-heading"><div><span class="kicker">SOURCE REGISTRY</span><h2 id="dataSourcesTitle">数据来源</h2><p>集中查看系统使用及规划接入的数据网站、访问方式、数据范围与当前状态。</p></div><span class="workspace-badge">公开信息</span></div>
+          <div class="source-registry-summary"><strong id="sourceRegistryCount">正在读取…</strong><span>凭据、会话与管理入口不会在公开页面展示。</span></div>
+          <div class="source-registry-grid" id="sourceRegistryGrid"><div class="workspace-empty">正在读取数据来源台账…</div></div>
+        </section>
+
+        <section class="assistant-workspace" id="assistant" aria-labelledby="assistantTitle">
+          <div class="workspace-heading"><div><span class="kicker">INTELLIGENCE COPILOT</span><h2 id="assistantTitle">智能分析</h2><p>围绕游戏、榜单、趋势和开发方向提问，并在下方形成可追溯的整体分析报告。</p></div><span class="workspace-badge">证据优先</span></div>
+          <div class="assistant-query-panel">
+            <div class="assistant-query-copy"><span class="assistant-icon">✦</span><div><span class="kicker">ASK GAMEPULSE</span><h3>问问情报助手</h3><p>提问区域保持独立；缺少真实证据时会明确说明数据缺口。</p></div></div>
+            <form id="assistantForm"><label class="sr-only" for="assistantInput">请输入游戏数据问题</label><input id="assistantInput" placeholder="例如：最近哪款小游戏最火？" required /><button>分析 <span>→</span></button></form>
+          </div>
+          <section class="assistant-report" aria-labelledby="assistantReportTitle">
+            <div class="assistant-report-heading"><div><span class="kicker">ANALYSIS REPORT</span><h3 id="assistantReportTitle">整体分析报告</h3></div><span id="assistantReportStatus">等待提问</span></div>
+            <div class="assistant-report-output is-empty" id="assistantAnswer" aria-live="polite">
+              <div class="assistant-report-empty"><span>✦</span><h4>报告将在这里生成</h4><p>提交问题后，当前回答会进入报告区。证据目录、数据缺口和行动建议已预留结构，后续可直接接入主分支的数据源分析结果。</p></div>
+            </div>
+          </section>
         </section>
       </section>
       <footer>GamePulse Intelligence · 数据驱动的游戏立项与运营决策</footer>
@@ -312,6 +328,7 @@
   <script src="./product-analysis.js"></script>
   <script src="./mini-game-rankings.js"></script>
   <script src="./mini-game-intelligence.js"></script>
+  <script src="./interface-layout.js"></script>
   <script src="./page-router.js"></script>
 </body>
 </html>

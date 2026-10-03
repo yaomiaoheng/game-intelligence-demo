@@ -1,5 +1,6 @@
 // The public static experience has no permission to redistribute collector records.
 // Real data remains in the authenticated cloud API until publication rights are verified.
+const sourceRegistry = [{"source_id":"commercial-csv","source_name":"Licensed Commercial Data Import","source_type":"commercial_estimate","platform":"cross_platform","access_method":"csv","authorization":"licensed_export","data_scope":["sales_estimate","revenue_estimate","downloads_estimate","market_share"],"official":false,"estimated":true,"commercial_license":true,"collection_allowed":true,"retention_allowed":true,"redistribution_allowed":false,"update_frequency":"provider_schedule","quality_grade":"B","terms_url":"","last_compliance_reviewed_at":null,"rate_limit":{}},{"source_id":"diandian-cloud","source_name":"点点数据授权云采集","source_type":"commercial_estimate","platform":"mobile","access_method":"authorized_browser","authorization":"persistent_cloud_session","data_scope":["rank","download_estimate","revenue_estimate","rating","reviews","historical_trend"],"official":false,"estimated":true,"commercial_license":true,"collection_allowed":true,"retention_allowed":true,"redistribution_allowed":false,"update_frequency":"six_hourly_rank_daily_game","quality_grade":"C","terms_url":"https://app.diandian.com/","last_compliance_reviewed_at":null,"rate_limit":{}},{"source_id":"editorial-research","source_name":"Human Product Research","source_type":"editorial_manual","platform":"cross_platform","access_method":"manual","authorization":"internal_reviewer","data_scope":["gameplay","features","systems","content","monetization"],"official":false,"estimated":false,"commercial_license":false,"collection_allowed":true,"retention_allowed":true,"redistribution_allowed":false,"update_frequency":"after_major_version","quality_grade":"B","terms_url":"","last_compliance_reviewed_at":null,"rate_limit":{}},{"source_id":"igdb","source_name":"IGDB","source_type":"official_public","platform":"cross_platform","access_method":"api","authorization":"oauth_client","data_scope":["metadata","platforms","genres","themes","release_dates"],"official":true,"estimated":false,"commercial_license":false,"collection_allowed":true,"retention_allowed":true,"redistribution_allowed":false,"update_frequency":"weekly","quality_grade":"B","terms_url":"https://api-docs.igdb.com/","last_compliance_reviewed_at":null,"rate_limit":{}},{"source_id":"mock-product-lab","source_name":"Mock Product Lab","source_type":"mock","platform":"demo","access_method":"fixture","authorization":"none","data_scope":["all_demo_fields"],"official":false,"estimated":true,"commercial_license":false,"collection_allowed":true,"retention_allowed":true,"redistribution_allowed":false,"update_frequency":"fixed","quality_grade":"D","terms_url":"","last_compliance_reviewed_at":null,"rate_limit":{}},{"source_id":"steam-public","source_name":"Steam Public Data","source_type":"official_public","platform":"steam","access_method":"api","authorization":"none_or_api_key","data_scope":["metadata","price","discount","current_players","reviews","news"],"official":true,"estimated":false,"commercial_license":false,"collection_allowed":true,"retention_allowed":true,"redistribution_allowed":false,"update_frequency":"hourly_players_daily_catalog","quality_grade":"B","terms_url":"https://store.steampowered.com/api/","last_compliance_reviewed_at":null,"rate_limit":{}},{"source_id":"youtube-data","source_name":"YouTube Data API","source_type":"official_public","platform":"youtube","access_method":"api","authorization":"api_key","data_scope":["video_count","views","likes","comments","channel_coverage"],"official":true,"estimated":false,"commercial_license":false,"collection_allowed":true,"retention_allowed":true,"redistribution_allowed":false,"update_frequency":"daily","quality_grade":"B","terms_url":"https://developers.google.com/youtube/v3","last_compliance_reviewed_at":null,"rate_limit":{}}];
 const json = (payload, status = 200) => new Response(JSON.stringify(payload), {
   status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
 });
@@ -13,6 +14,7 @@ const publicWorker = {
       updatedAt: null, collectionStatus: "not_public", stale: true,
       notice: "暂无获准公开展示的真实游戏数据；缺失值不补零，不使用演示数据。",
     });
+    if (url.pathname === "/api/data-sources/registry") return json({ items: sourceRegistry });
     if (url.pathname === "/api/games") return json({ items: [] });
     if (url.pathname === "/api/mini-game-rankings") return json({ error: { code: "MINI_RANKINGS_UNAVAILABLE", message: "公开静态站暂无安全的 HTTPS 快照代理；请在云端 GamePulse 站查看实时榜单。" } }, 503);
     if (url.pathname === "/api/opportunities/analyze" && request.method === "POST") return json({
@@ -84,7 +86,7 @@ async function loadOverview() {
   $("#growthMetric").textContent = hasValue(data.avgGrowth) ? `${data.avgGrowth > 0 ? "+" : ""}${data.avgGrowth}%` : "暂无数据";
   $("#leaderMetric").textContent = data.leader || "暂无数据";
   $("#updatedAt").textContent = data.updatedAt ? `最后成功 ${formatDateTime(data.updatedAt)}${data.stale ? " · 采集状态待恢复" : ""}` : "暂无成功采集";
-  $("#dataNotice").textContent = data.notice;
+  $("#dataNoticeText").textContent = data.notice;
 }
 
 function renderRows(games) {
@@ -396,12 +398,22 @@ $("#assistantForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const query = $("#assistantInput").value.trim();
   if (!query) return;
-  $("#assistantAnswer").textContent = "正在分析…";
+  const report = $("#assistantAnswer");
+  const reportStatus = $("#assistantReportStatus");
+  report.className = "assistant-report-output is-loading";
+  report.textContent = "正在整理问题、证据与数据缺口…";
+  reportStatus.textContent = "分析中";
   try {
     const data = await getJSON("/api/query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
-    $("#assistantAnswer").textContent = data.answer;
-  } catch (error) { $("#assistantAnswer").textContent = error.message; }
+    report.className = "assistant-report-output is-ready";
+    report.textContent = data.answer;
+    reportStatus.textContent = "报告已生成";
+  } catch (error) {
+    report.className = "assistant-report-output is-ready";
+    report.textContent = error.message;
+    reportStatus.textContent = "生成失败";
+  }
 });
 $(".menu-button").addEventListener("click", () => $(".sidebar").classList.toggle("open"));
 window.addEventListener("resize", () => state.selected && drawChart(selectedTrendPoints(), state.metric));
-Promise.all([loadOverview(), loadGames()]).catch(error => { $("#dataNotice").textContent = `加载失败：${error.message}`; });
+Promise.all([loadOverview(), loadGames()]).catch(error => { $("#dataNoticeText").textContent = `加载失败：${error.message}`; });
