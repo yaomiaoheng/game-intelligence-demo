@@ -116,7 +116,7 @@ window.fetch = (input, init) => {
   return nativeFetch(input, init);
 };
 
-const state = { games: [], selected: null };
+const state = { games: [], selected: null, metric: "revenue", rangeDays: 30 };
 const $ = (selector) => document.querySelector(selector);
 
 async function getJSON(url, options) {
@@ -156,6 +156,7 @@ function renderRows(games) {
 async function loadGames() {
   const params = new URLSearchParams({
     q: $("#searchInput").value,
+    category: $("#categoryFilter").value,
     region: $("#regionFilter").value,
     channel: $("#channelFilter").value,
     sort: $("#sortFilter").value,
@@ -173,14 +174,12 @@ async function selectGame(id) {
     getJSON(`/api/intelligence?game_name=${encodeURIComponent(selected?.name || "")}`),
   ]);
   state.selected = game;
-  $("#chartTitle").textContent = `${game.name} · 收入与下载走势`;
-  $("#chartRevenue").textContent = `${formatNumber(game.revenue)} 万元`;
-  $("#chartDelta").textContent = `${game.growth >= 0 ? "+" : ""}${game.growth}% 近周期`;
+  document.querySelectorAll("tr[data-id]").forEach(row => row.classList.toggle("selected", row.dataset.id === id));
   $("#selectedInsight").textContent = game.signal;
   const score = Math.max(55, Math.min(96, Math.round(70 + game.growth / 3 + (game.rating - 4) * 8)));
   $("#scoreValue").textContent = score;
   $(".score-ring").style.background = `conic-gradient(var(--green) 0 ${score}%, #e7ece9 ${score}%)`;
-  drawChart(game.trend);
+  renderSelectedTrend();
   renderIntelligence(intelligence);
 }
 
@@ -207,7 +206,50 @@ function formatDateTime(value) {
   }).format(date);
 }
 
-function drawChart(points) {
+function updateChartSummary() {
+  if (!state.selected) return;
+  const game = state.selected;
+  const points = selectedTrendPoints();
+  const latest = points.at(-1);
+  const first = points[0];
+  const rangeName = state.rangeDays === null ? "全部" : `${state.rangeDays}天`;
+  const percentChange = (key) => {
+    if (!first || !latest || first[key] === 0 || points.length < 2) return "样本不足";
+    const value = ((latest[key] - first[key]) / first[key]) * 100;
+    return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+  };
+  const rankChange = first && latest ? first.rank - latest.rank : 0;
+  const metricCopy = {
+    revenue: { title: "收入走势", value: `${formatNumber(latest?.revenue ?? game.revenue)} 万元`, delta: percentChange("revenue") },
+    downloads: { title: "下载走势", value: `${formatNumber(latest?.downloads ?? game.downloads)} 万次`, delta: percentChange("downloads") },
+    rank: { title: "免费榜走势", value: `第 ${latest?.rank ?? game.free_rank} 名`, delta: points.length < 2 ? "样本不足" : `${rankChange >= 0 ? "上升" : "下降"} ${Math.abs(rankChange)} 位` },
+  }[state.metric];
+  $("#chartTitle").textContent = `${game.name} · ${metricCopy.title}`;
+  $("#chartRevenue").textContent = metricCopy.value;
+  $("#chartDelta").textContent = `${metricCopy.delta} · ${rangeName} · ${points.length} 个观测点`;
+}
+
+function selectedTrendPoints() {
+  const points = state.selected?.trend || [];
+  if (state.rangeDays === null || points.length < 2) return points;
+  const parseDate = (value) => {
+    if (/^\d{4}-\d{2}-\d{2}/.test(value)) return Date.parse(value);
+    const [month, day] = value.split("/").map(Number);
+    return Date.UTC(new Date().getUTCFullYear(), month - 1, day);
+  };
+  const latest = parseDate(points.at(-1).date);
+  const cutoff = latest - state.rangeDays * 24 * 60 * 60 * 1000;
+  return points.filter((point) => parseDate(point.date) >= cutoff);
+}
+
+function renderSelectedTrend() {
+  if (!state.selected) return;
+  const points = selectedTrendPoints();
+  updateChartSummary();
+  drawChart(points, state.metric);
+}
+
+function drawChart(points, metric = "revenue") {
   const canvas = $("#trendChart");
   const ratio = window.devicePixelRatio || 1;
   const width = canvas.clientWidth;
@@ -227,19 +269,39 @@ function drawChart(points) {
     const max = Math.max(...values) * 1.08;
     ctx.beginPath();
     values.forEach((value, index) => {
-      const x = pad.x + index * ((width - pad.x * 2) / (values.length - 1));
-      const y = height - pad.bottom - ((value - min) / (max - min || 1)) * (height - pad.y - pad.bottom);
+      const x = values.length === 1 ? width / 2 : pad.x + index * ((width - pad.x * 2) / (values.length - 1));
+      const progress = (value - min) / (max - min || 1);
+      const y = key === "rank" ? pad.y + progress * (height - pad.y - pad.bottom) : height - pad.bottom - progress * (height - pad.y - pad.bottom);
       index ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
     });
     ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
   };
-  makePath("revenue", "#136f52");
-  makePath("downloads", "#ff7a45");
+  const colors = { revenue: "#136f52", downloads: "#ff7a45", rank: "#7257d5" };
+  makePath(metric, colors[metric]);
   $("#chartAxis").innerHTML = points.map(point => `<span>${point.date}</span>`).join("");
 }
 
 let debounce;
 $("#filterForm").addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(loadGames, 180); });
+$("#resetFilters").addEventListener("click", () => { $("#filterForm").reset(); loadGames(); });
+document.querySelectorAll(".metric-tabs button").forEach(button => button.addEventListener("click", () => {
+  state.metric = button.dataset.metric;
+  document.querySelectorAll(".metric-tabs button").forEach(item => {
+    const active = item === button;
+    item.classList.toggle("active", active);
+    item.setAttribute("aria-selected", String(active));
+  });
+  renderSelectedTrend();
+}));
+document.querySelectorAll(".range-tabs button").forEach(button => button.addEventListener("click", () => {
+  state.rangeDays = button.dataset.range === "all" ? null : Number(button.dataset.range);
+  document.querySelectorAll(".range-tabs button").forEach(item => {
+    const active = item === button;
+    item.classList.toggle("active", active);
+    item.setAttribute("aria-pressed", String(active));
+  });
+  renderSelectedTrend();
+}));
 $("#assistantForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const query = $("#assistantInput").value.trim();
@@ -251,5 +313,5 @@ $("#assistantForm").addEventListener("submit", async (event) => {
   } catch (error) { $("#assistantAnswer").textContent = error.message; }
 });
 $(".menu-button").addEventListener("click", () => $(".sidebar").classList.toggle("open"));
-window.addEventListener("resize", () => state.selected && drawChart(state.selected.trend));
+window.addEventListener("resize", () => state.selected && drawChart(selectedTrendPoints(), state.metric));
 Promise.all([loadOverview(), loadGames()]).catch(error => { $("#dataNotice").textContent = `加载失败：${error.message}`; });
