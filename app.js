@@ -79,10 +79,12 @@ const mockWorker = {
       const region = url.searchParams.get("region") || "";
       const channel = url.searchParams.get("channel") || "";
       const sort = url.searchParams.get("sort") || "growth";
+      const requestedLimit = Number(url.searchParams.get("limit") || 100);
+      const limit = Math.max(1, Math.min(Number.isFinite(requestedLimit) ? requestedLimit : 100, 500));
       const items = games.filter((game) => {
         const haystack = [game.name, game.company, game.publisher, game.category, ...game.tags].join(" ").toLowerCase();
         return (!q || haystack.includes(q)) && (!region || game.region === region) && (!channel || game.channel === channel);
-      }).sort((a, b) => (b[sort] || 0) - (a[sort] || 0)).map((game) => publicGame(game));
+      }).sort((a, b) => (b[sort] || 0) - (a[sort] || 0)).slice(0, limit).map((game) => publicGame(game));
       return json({ items });
     }
     if (url.pathname.startsWith("/api/games/")) {
@@ -102,7 +104,6 @@ const mockWorker = {
     return nativeFetch(request);
   },
 };
-
 
 
 const nativeFetch = window.fetch.bind(window);
@@ -160,6 +161,7 @@ async function loadGames() {
     region: $("#regionFilter").value,
     channel: $("#channelFilter").value,
     sort: $("#sortFilter").value,
+    limit: "100",
   });
   const data = await getJSON(`/api/games?${params}`);
   state.games = data.items;
