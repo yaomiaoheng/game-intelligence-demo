@@ -40,9 +40,11 @@
       return;
     }
     const text = selected.briefs?.[state.focus] || "摘要尚未更新，请刷新结论。";
+    const enrichment = selected.enrichment || {};
+    const extraSources = enrichment.sources || [];
     host.innerHTML = `<div class="mini-latest-product"><h4>${escapeHTML(selected.game_name)}</h4><span class="mini-date-tag">${escapeHTML(selected.as_of)}${selected.stale ? " · 旧快照" : ""}</span><span class="mini-latest-length">${[...text].length} 字</span></div>
       <p class="mini-latest-summary">${escapeHTML(text)}</p>
-      <div class="mini-latest-footer"><span>依据：${escapeHTML(selected.evidence)} · 榜单描述 + 待验证建议</span><details><summary>核验来源</summary><p>来源：DataEye 官方 MCP · 小游戏榜单${selected.external_id ? ` · 产品 ID ${escapeHTML(selected.external_id)}` : ""}</p>${selected.source_description ? `<p>来源描述：${escapeHTML(selected.source_description)}</p>` : "<p>玩法、题材与画风信息未提供，不作事实推断。</p>"}${(selected.support || []).map(value => `<p>${escapeHTML(value)}</p>`).join("")}<p>${escapeHTML(selected.risk)}</p></details></div>`;
+      <div class="mini-latest-footer"><span>依据：${escapeHTML(selected.evidence)} · 榜单描述 + 待验证建议</span><details><summary>核验来源</summary><p>榜单事实：DataEye 官方 MCP · 小游戏榜单${selected.external_id ? ` · 产品 ID ${escapeHTML(selected.external_id)}` : ""}</p>${extraSources.length ? `<p>外部补充：${extraSources.map(escapeHTML).join("、")} · 更新 ${escapeHTML(enrichment.updated_at || "暂无")}</p>` : "<p>外部产品与运营资料尚未匹配，不作补写。</p>"}${selected.publisher ? `<p>研发 / 发行：${escapeHTML(selected.publisher)}</p>` : ""}${selected.source_description ? `<p>来源描述：${escapeHTML(selected.source_description)}</p>` : "<p>玩法、题材与画风信息未提供，不作事实推断。</p>"}${(selected.support || []).map(value => `<p>${escapeHTML(value)}</p>`).join("")}<p>${escapeHTML(selected.risk)}</p></details></div>`;
   }
 
   function card(item) {
@@ -50,7 +52,7 @@
     return `<article class="mini-intel-card"><div class="mini-intel-card-top"><span class="mini-intel-kind ${item.type}">${escapeHTML(typeLabels[item.type] || item.type)}</span><small>${escapeHTML(item.as_of)}${item.stale ? " · 旧快照" : ""}</small></div>
       <h4>${escapeHTML(item.game_name)}</h4><p class="mini-intel-fact">${escapeHTML(item.evidence)}</p><p class="mini-intel-conclusion">${escapeHTML(item.conclusion)}</p>
       <div class="mini-intel-decisions">${roles.map(role => `<p><span>${roleLabels[role]}</span>${escapeHTML(item.actions?.[role] || "暂无建议")}</p>`).join("")}</div>
-      <details class="mini-intel-evidence"><summary>来源与边界</summary><p>DataEye 官方 MCP · 小游戏榜单 · ${escapeHTML(item.as_of)}${item.external_id ? ` · 产品 ID ${escapeHTML(item.external_id)}` : ""}</p>${(item.support || []).map(value => `<p>${escapeHTML(value)}</p>`).join("")}<p>${escapeHTML(item.risk)}</p></details></article>`;
+      <details class="mini-intel-evidence"><summary>来源与边界</summary><p>榜单事实：DataEye 官方 MCP · ${escapeHTML(item.as_of)}${item.external_id ? ` · 产品 ID ${escapeHTML(item.external_id)}` : ""}</p>${item.enrichment?.sources?.length ? `<p>产品与运营补充：${item.enrichment.sources.map(escapeHTML).join("、")}</p>` : "<p>产品与运营补充：暂无匹配证据</p>"}${(item.support || []).map(value => `<p>${escapeHTML(value)}</p>`).join("")}<p>${escapeHTML(item.risk)}</p></details></article>`;
   }
 
   function renderCards() {
@@ -75,7 +77,7 @@
     document.getElementById("miniIntelItemCount").textContent = `${(snapshot.items || []).length} 条线索`;
     const note = document.getElementById("miniIntelSourceNote");
     note.classList.toggle("stale", Boolean(snapshot.connection?.stale));
-    note.textContent = `只读已保存榜单，不触发付费取数。不使用演示数据、APP / PC 观测、新闻或收入估算。${(snapshot.boards || []).some(board => board.source_date !== snapshot.latest) ? "部分榜单为旧快照，日期分别标注。" : ""}${snapshot.invalid_records ? `有 ${snapshot.invalid_records} 条来源日期或字段不完整的记录未用于结论。` : ""}${snapshot.connection?.warning ? ` ${snapshot.connection.warning}` : ""}`;
+    note.textContent = `榜单名次只读已保存榜单，不触发付费取数；其他来源仅补充产品、厂商、版本、评价与运营证据，不将其改写为榜单、收入或下载量。${(snapshot.boards || []).some(board => board.source_date !== snapshot.latest) ? "部分榜单为旧快照，日期分别标注。" : ""}${snapshot.invalid_records ? `有 ${snapshot.invalid_records} 条来源日期或字段不完整的记录未用于结论。` : ""}${snapshot.connection?.warning ? ` ${snapshot.connection.warning}` : ""}`;
     document.getElementById("miniIntelMethodText").textContent = snapshot.method || "只参考小游戏榜单真实快照。";
     document.getElementById("miniIntelBoardList").innerHTML = (snapshot.boards || []).map(board => `<li>${board.provider === "douyin" ? "抖音" : "微信"} · ${escapeHTML(board.label)} · ${escapeHTML(board.source_date)} · ${board.records} 条</li>`).join("");
     renderLatest();
@@ -105,7 +107,7 @@
   function buildReport() {
     const snapshot = state.snapshot;
     const selected = selectedProduct();
-    const header = `# 小游戏决策摘要\n\n来源：仅小游戏榜单（DataEye 官方 MCP 已保存快照）。\n来源最新日期：${snapshot?.latest || "暂无"}；平台：${providerLabels[state.provider]}。\n\n`;
+    const header = `# 小游戏决策摘要\n\n榜单事实来源：DataEye 官方 MCP 已保存快照；产品与运营信息可由其他已采集来源补充。\n来源最新日期：${snapshot?.latest || "暂无"}；平台：${providerLabels[state.provider]}。\n\n`;
     const latest = selected ? `## 最新情报 · ${selected.game_name}\n解读方向：${focusLabels[state.focus]}\n\n${selected.briefs?.[state.focus] || "摘要待更新"}\n\n` : "";
     const items = (snapshot?.items || []).map((item, index) => `## ${index + 1}. ${item.game_name}\n- 依据：${item.as_of} · ${item.evidence}\n- 结论：${item.conclusion}\n- 研发：${item.actions.development}\n- 发行：${item.actions.publishing}\n- 运营：${item.actions.operations}`).join("\n\n") || "暂无满足条件的真实小游戏榜单线索。";
     return `${header}${latest}${items}\n\n口径：${snapshot?.method || "无榜单数据"}\n建议仅供决策验证，不证明收入、利润、留存或增长原因。\n`;
