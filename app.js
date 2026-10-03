@@ -1,105 +1,26 @@
-const games = [{"id":"starfall","name":"星落远征","company":"远望互动","publisher":"远望互动","region":"中国","channel":"App Store","category":"策略RPG","tags":["卡牌","科幻","放置"],"rating":4.7,"sentiment":86,"status":"高潜力","revenue":4280,"downloads":286,"growth":31.8,"free_rank":6,"grossing_rank":3,"signal":"版本活动带动收入连续三周增长，付费转化优于同类均值。","trend":[["09/01",23,980,18],["09/08",16,1260,24],["09/15",11,1880,31],["09/22",8,2740,37],["09/29",6,4280,46]]},{"id":"harbor","name":"港湾物语","company":"青屿网络","publisher":"青屿网络","region":"中国","channel":"微信小游戏","category":"模拟经营","tags":["治愈","经营","社交"],"rating":4.8,"sentiment":91,"status":"趋势爆发","revenue":3160,"downloads":512,"growth":48.6,"free_rank":2,"grossing_rank":7,"signal":"模拟经营赛道新增用户显著抬升，小游戏渠道传播效率突出。","trend":[["09/01",38,510,42],["09/08",22,830,61],["09/15",12,1420,78],["09/22",5,2260,96],["09/29",2,3160,118]]},{"id":"mecha","name":"机甲破晓","company":"极昼工作室","publisher":"北辰发行","region":"全球","channel":"Google Play","category":"动作竞技","tags":["机甲","PVP","动作"],"rating":4.4,"sentiment":72,"status":"重点观察","revenue":2570,"downloads":341,"growth":12.4,"free_rank":14,"grossing_rank":12,"signal":"下载增长保持稳定，但评分受匹配机制反馈影响，需观察留存。","trend":[["09/01",19,1680,52],["09/08",16,1940,57],["09/15",12,2190,61],["09/22",13,2410,65],["09/29",14,2570,69]]},{"id":"chef","name":"今晚吃什么","company":"小满科技","publisher":"小满科技","region":"中国","channel":"华为应用市场","category":"休闲益智","tags":["合成","美食","轻度"],"rating":4.6,"sentiment":83,"status":"稳健增长","revenue":1640,"downloads":448,"growth":18.9,"free_rank":9,"grossing_rank":21,"signal":"低获客成本带动规模增长，商业化深度仍有提升空间。","trend":[["09/01",17,930,66],["09/08",14,1080,74],["09/15",12,1250,81],["09/22",10,1460,89],["09/29",9,1640,96]]},{"id":"kingdom","name":"王国边境线","company":"狮鹫游戏","publisher":"Aurora Games","region":"欧美","channel":"App Store","category":"塔防策略","tags":["塔防","中世纪","单机"],"rating":4.5,"sentiment":79,"status":"成熟产品","revenue":1980,"downloads":176,"growth":-3.6,"free_rank":32,"grossing_rank":18,"signal":"核心用户付费稳定，新用户增长放缓，适合通过内容更新再激活。","trend":[["09/01",26,2110,39],["09/08",28,2070,38],["09/15",29,2030,37],["09/22",31,2000,36],["09/29",32,1980,35]]}];
-
+// The public static experience has no permission to redistribute collector records.
+// Real data remains in the authenticated cloud API until publication rights are verified.
 const json = (payload, status = 200) => new Response(JSON.stringify(payload), {
-  status,
-  headers: {
-    "content-type": "application/json; charset=utf-8",
-    "cache-control": "no-store",
-  },
+  status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
 });
-
-const publicGame = (game, includeTrend = false) => {
-  const { trend, ...item } = game;
-  if (includeTrend) {
-    item.trend = trend.map(([date, rank, revenue, downloads]) => ({ date, rank, revenue, downloads }));
-  }
-  return item;
-};
-
-const intelligence = (game) => {
-  const competitors = games
-    .filter((item) => item.id !== game.id)
-    .sort((a, b) => b.growth - a.growth)
-    .slice(0, 2)
-    .map((item) => ({
-      game_id: item.id,
-      name: item.name,
-      reason: item.region === game.region ? "同市场高增长产品" : "跨市场增长参照",
-      growth_rate: item.growth,
-    }));
-  const risks = [
-    { code: "DEMO_SOURCE", level: "medium", summary: "当前为 Mock 演示数据，不能直接用于商业决策。" },
-  ];
-  if (game.growth < 0) risks.push({ code: "NEGATIVE_GROWTH", level: "high", summary: "近期增长为负，需要验证内容与获客效率。" });
-  if (game.rating < 4.5) risks.push({ code: "RATING_PRESSURE", level: "medium", summary: "评分低于样本均值，需关注用户反馈。" });
-  return {
-    game: { id: game.id, name: game.name, company: game.company, publisher: game.publisher, category: game.category, tags: game.tags },
-    snapshots: [],
-    analysis: {
-      trend: {
-        direction: game.growth > 3 ? "up" : game.growth < -3 ? "down" : "flat",
-        change_rate: game.growth,
-        summary: `${game.name}近周期增长${game.growth >= 0 ? "+" : ""}${game.growth}%，${game.signal}`,
-        evidence: [`收入 ${game.revenue} 万元`, `下载 ${game.downloads} 万次`, `免费榜第 ${game.free_rank} 名`],
-        window: { points: game.trend.length },
-      },
-      competitors,
-      risks,
-    },
-    sources: [{ id: "mock-platform", label: "Mock Platform", quality: "demo" }],
-    updated_at: "2026-10-03T03:30:00Z",
-  };
-};
-
-function answer(query) {
-  const selected = games.find((game) => query.includes(game.name));
-  if (selected) return `${selected.name}当前监测收入 ${selected.revenue} 万元，近周期增长 ${selected.growth}%。${selected.signal}`;
-  const leader = [...games].sort((a, b) => b.growth - a.growth)[0];
-  return `Mock 样本中增长最快的是《${leader.name}》，近周期增长 ${leader.growth}%。所有结果仅供产品体验。`;
-}
 
 const mockWorker = {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === "/api/health") return json({ ok: true, service: "game-intel-public-demo" });
-    if (url.pathname === "/api/overview") {
-      const leader = [...games].sort((a, b) => b.growth - a.growth)[0];
-      return json({
-        games: games.length,
-        revenue: games.reduce((sum, item) => sum + item.revenue, 0),
-        downloads: games.reduce((sum, item) => sum + item.downloads, 0),
-        avgGrowth: Math.round(games.reduce((sum, item) => sum + item.growth, 0) / games.length * 10) / 10,
-        leader: leader.name,
-        updatedAt: "2026-10-03 11:30",
-        notice: "公开体验版仅使用 Mock 演示数据，不代表真实市场表现或商业结论。",
-      });
-    }
-    if (url.pathname === "/api/games") {
-      const q = (url.searchParams.get("q") || "").toLowerCase();
-      const region = url.searchParams.get("region") || "";
-      const channel = url.searchParams.get("channel") || "";
-      const sort = url.searchParams.get("sort") || "growth";
-      const requestedLimit = Number(url.searchParams.get("limit") || 100);
-      const limit = Math.max(1, Math.min(Number.isFinite(requestedLimit) ? requestedLimit : 100, 500));
-      const items = games.filter((game) => {
-        const haystack = [game.name, game.company, game.publisher, game.category, ...game.tags].join(" ").toLowerCase();
-        return (!q || haystack.includes(q)) && (!region || game.region === region) && (!channel || game.channel === channel);
-      }).sort((a, b) => (b[sort] || 0) - (a[sort] || 0)).slice(0, limit).map((game) => publicGame(game));
-      return json({ items });
-    }
-    if (url.pathname.startsWith("/api/games/")) {
-      const game = games.find((item) => item.id === url.pathname.split("/").pop());
-      return game ? json(publicGame(game, true)) : json({ error: "未找到游戏" }, 404);
-    }
-    if (url.pathname === "/api/intelligence") {
-      const name = url.searchParams.get("game_name") || "";
-      const game = games.find((item) => item.name === name);
-      return game ? json(intelligence(game)) : json({ error: { code: "GAME_NOT_FOUND", message: "未找到匹配的游戏" } }, 404);
-    }
-    if (url.pathname === "/api/query" && request.method === "POST") {
-      const body = await request.json().catch(() => ({}));
-      return json({ answer: answer(String(body.query || "")) });
-    }
+    if (url.pathname === "/api/health") return json({ ok: true, service: "game-intel-public", data_mode: "real" });
+    if (url.pathname === "/api/overview") return json({
+      games: 0, revenue: null, downloads: null, avgGrowth: null, leader: null,
+      updatedAt: null, collectionStatus: "not_public", stale: true,
+      notice: "暂无获准公开展示的真实游戏数据；缺失值不补零，不使用演示数据。",
+    });
+    if (url.pathname === "/api/games") return json({ items: [] });
+    if (url.pathname === "/api/mini-game-rankings") return json({ error: { code: "MINI_RANKINGS_UNAVAILABLE", message: "公开静态站暂无安全的 HTTPS 快照代理；请在云端 GamePulse 站查看实时榜单。" } }, 503);
+    if (url.pathname === "/api/opportunities/analyze" && request.method === "POST") return json({
+      recommendations: [], sources: [], updated_at: null, status: "insufficient_evidence",
+      methodology: { version: "real-evidence-gate-v1", weights: {}, limitations: ["暂无足够已授权、可公开的真实证据。"], missing_value_policy: "缺失不补零、不参与评分", recommendation_language: "证据不足，建议继续采集" },
+    });
+    if (url.pathname === "/api/query" && request.method === "POST") return json({ answer: "暂无获准公开展示的真实游戏数据；当前不使用演示回答。" });
+    if (url.pathname.startsWith("/api/games/") || url.pathname === "/api/intelligence") return json({ error: { code: "REAL_DATA_NOT_PUBLIC", message: "暂无获准公开展示的真实数据" } }, 404);
     if (url.pathname.startsWith("/api/")) return json({ error: "接口不存在" }, 404);
     return nativeFetch(request);
   },
@@ -145,7 +66,7 @@ async function loadOverview() {
   $("#downloadsMetric").textContent = formatNumber(data.downloads);
   $("#growthMetric").textContent = hasValue(data.avgGrowth) ? `${data.avgGrowth > 0 ? "+" : ""}${data.avgGrowth}%` : "暂无数据";
   $("#leaderMetric").textContent = data.leader || "暂无数据";
-  $("#updatedAt").textContent = `更新于 ${data.updatedAt}`;
+  $("#updatedAt").textContent = data.updatedAt ? `最后成功 ${formatDateTime(data.updatedAt)}${data.stale ? " · 采集状态待恢复" : ""}` : "暂无成功采集";
   $("#dataNotice").textContent = data.notice;
 }
 
@@ -159,7 +80,7 @@ function renderRows(games) {
       <td><strong>${valueCell(game.revenue, " 万")}</strong></td>
       <td class="growth ${game.growth < 0 ? "negative" : ""}">${hasValue(game.growth) ? `${game.growth > 0 ? "+" : ""}${game.growth}%` : '<span class="missing-value">暂无数据</span>'}</td>
       <td><span class="status">${game.status}</span></td>
-    </tr>`).join("") || `<tr><td colspan="6">没有符合条件的产品</td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="6">暂无符合条件的真实游戏数据</td></tr>`;
   document.querySelectorAll("tr[data-id]").forEach(row => row.addEventListener("click", () => selectGame(row.dataset.id)));
 }
 
@@ -188,9 +109,10 @@ async function selectGame(id) {
   syncDateControls();
   document.querySelectorAll("tr[data-id]").forEach(row => row.classList.toggle("selected", row.dataset.id === id));
   $("#selectedInsight").textContent = game.signal;
-  const score = Math.max(55, Math.min(96, Math.round(70 + game.growth / 3 + (game.rating - 4) * 8)));
-  $("#scoreValue").textContent = score;
-  $(".score-ring").style.background = `conic-gradient(var(--green) 0 ${score}%, #e7ece9 ${score}%)`;
+  const hasScoreEvidence = hasValue(game.growth) && hasValue(game.rating);
+  const score = hasScoreEvidence ? Math.max(55, Math.min(96, Math.round(70 + game.growth / 3 + (game.rating - 4) * 8))) : null;
+  $("#scoreValue").textContent = score ?? "/";
+  $(".score-ring").style.background = score === null ? "#e7ece9" : `conic-gradient(var(--green) 0 ${score}%, #e7ece9 ${score}%)`;
   renderIntelligence(intelligence);
   renderSelectedTrend();
 }
