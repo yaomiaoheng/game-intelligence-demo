@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="./development-decision.css" />
   <link rel="stylesheet" href="./product-analysis.css" />
   <link rel="stylesheet" href="./mini-game-rankings.css" />
+  <link rel="stylesheet" href="./mini-game-intelligence.css" />
 </head>
 <body>
   <div class="shell">
@@ -18,6 +19,7 @@
         <a class="nav-item active" href="#overview"><span>⌁</span>决策总览</a>
         <a class="nav-item" href="#games"><span>◫</span>游戏雷达</a>
         <a class="nav-item" href="#mini-game-rankings"><span>▥</span>小游戏榜单</a>
+        <a class="nav-item" href="#mini-game-intelligence"><span>ϟ</span>小游戏情报</a>
         <a class="nav-item" href="#opportunities"><span>⌁</span>机会洞察</a>
         <a class="nav-item" href="#development-decision"><span>◆</span>开发决策</a>
         <a class="nav-item" href="#assistant"><span>✦</span>智能分析</a>
@@ -85,6 +87,76 @@
           </div>
           <div id="miniRunLog"><div class="mini-empty"><span>◎</span><strong>暂无官方调用日志</strong></div></div>
         </section>
+      </section>
+
+      <section class="mini-intelligence-view" id="mini-game-intelligence" aria-labelledby="miniIntelligenceTitle" hidden>
+        <div class="mini-intelligence-heading">
+          <div>
+            <span class="kicker">GAME INTELLIGENCE WORKSPACE</span>
+            <h2 id="miniIntelligenceTitle">小游戏情报</h2>
+            <p>仅依据小游戏榜单，提炼研发、发行、运营决策参考。</p>
+          </div>
+          <div class="mini-intelligence-actions">
+            <a class="mini-button" href="#mini-game-rankings"><span>▥</span>查看小游戏榜单</a>
+            <button class="mini-button" id="miniIntelRefresh" type="button"><span>✓</span>刷新结论</button>
+            <button class="mini-button mini-intel-primary" id="miniIntelExport" type="button"><span>✦</span>导出决策摘要</button>
+          </div>
+        </div>
+
+        <section class="mini-latest-panel" aria-labelledby="miniLatestTitle">
+          <div class="mini-latest-header">
+            <div><span class="mini-latest-kicker">✦ 产品决策简报</span><h3 id="miniLatestTitle">最新情报</h3></div>
+            <div class="mini-latest-controls">
+              <label>展开产品<select id="miniIntelProduct" aria-label="最新情报产品"><option>正在读取…</option></select></label>
+              <label>解读方向<select id="miniIntelFocus" aria-label="最新情报解读方向"><option value="combined">综合决策</option><option value="development">研发立项</option><option value="publishing">发行买量</option><option value="operations">运营与用户</option></select></label>
+            </div>
+          </div>
+          <div id="miniLatestBody"><div class="mini-intel-empty">正在生成真实榜单决策简报…</div></div>
+        </section>
+
+        <div class="mini-intel-scope">
+          <div class="mini-provider-tabs" role="group" aria-label="小游戏平台">
+            <button class="active" type="button" data-mini-provider="all">全部小游戏</button>
+            <button type="button" data-mini-provider="douyin">抖音小游戏</button>
+            <button type="button" data-mini-provider="wechat">微信小游戏</button>
+          </div>
+          <span id="miniIntelCoverage">真实快照 · 正在读取榜单覆盖</span>
+        </div>
+
+        <div class="mini-intel-source-note" id="miniIntelSourceNote" role="status">只读已保存榜单，不触发付费取数。不使用演示数据、APP / PC 观测、新闻或收入估算。</div>
+
+        <div class="mini-intel-stats" aria-label="情报信号统计">
+          <button type="button" data-mini-signal="new"><span>新游 / 新进榜</span><strong id="miniIntelNewCount">0<small> 条</small></strong></button>
+          <button type="button" data-mini-signal="rise"><span>排名走强</span><strong id="miniIntelRiseCount">0<small> 条</small></strong></button>
+          <button type="button" data-mini-signal="fall"><span>排名回落</span><strong id="miniIntelFallCount">0<small> 条</small></strong></button>
+          <button type="button" data-mini-signal="leader"><span>头部对标</span><strong id="miniIntelLeaderCount">0<small> 条</small></strong></button>
+        </div>
+
+        <section class="mini-decision-panel">
+          <div class="mini-decision-heading">
+            <div><h3>小游戏决策速览</h3><p>一句结论 + 三类行动；建议需验证，不等于经营结果。</p></div>
+            <span class="mini-readonly-tag" id="miniIntelItemCount">0 条线索</span>
+          </div>
+          <div class="mini-intel-toolbar">
+            <div class="mini-signal-tabs" role="group" aria-label="情报类型">
+              <button class="active" type="button" data-mini-signal="all">全部</button>
+              <button type="button" data-mini-signal="new">新游观察</button>
+              <button type="button" data-mini-signal="rise">走强</button>
+              <button type="button" data-mini-signal="fall">回落</button>
+              <button type="button" data-mini-signal="leader">头部</button>
+            </div>
+            <label>决策角色 <select id="miniIntelRole"><option value="all">全部角色</option><option value="development">研发</option><option value="publishing">发行</option><option value="operations">运营</option></select></label>
+          </div>
+          <div class="mini-intel-grid" id="miniIntelCards"><div class="mini-intel-empty">正在从小游戏榜单提炼情报…</div></div>
+          <div class="mini-intel-more" id="miniIntelMore" hidden><button class="mini-button" type="button">查看更多</button></div>
+        </section>
+
+        <details class="mini-intel-method" id="miniIntelMethod">
+          <summary>榜单覆盖与口径</summary>
+          <p id="miniIntelMethodText">只参考小游戏榜单真实快照。</p>
+          <ul id="miniIntelBoardList"></ul>
+          <p>走强 / 回落阈值为来源排名变化 ≥ 3 位；头部对标为 Top 3；新游观察为新游榜 Top 10 或来源明确标注新进榜。同平台同产品同日合并为一条，其他榜单依据可展开查看。</p>
+        </details>
       </section>
 
       <section class="content" id="overview">
@@ -228,5 +300,6 @@
   <script src="./development-decision.js"></script>
   <script src="./product-analysis.js"></script>
   <script src="./mini-game-rankings.js"></script>
+  <script src="./mini-game-intelligence.js"></script>
 </body>
 </html>

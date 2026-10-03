@@ -37,6 +37,15 @@ window.fetch = (input, init) => {
       snapshotUrl.searchParams.set('_', String(Date.now()));
       return nativeFetch(new Request(snapshotUrl, { cache: 'no-store' }));
     }
+    if (new URL(request.url).pathname === '/api/mini-game-intelligence') {
+      const provider = new URL(request.url).searchParams.get('provider') || 'all';
+      if (!['all', 'douyin', 'wechat'].includes(provider)) {
+        return json({ error: { code: 'INVALID_PROVIDER', message: '平台筛选无效' } }, 400);
+      }
+      const snapshotUrl = new URL(`./mini-intelligence-${provider}.json`, window.location.href);
+      snapshotUrl.searchParams.set('_', String(Date.now()));
+      return nativeFetch(new Request(snapshotUrl, { cache: 'no-store' }));
+    }
     return publicWorker.fetch(request, {});
   }
   return nativeFetch(input, init);

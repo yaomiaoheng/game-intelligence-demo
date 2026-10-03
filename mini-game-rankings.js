@@ -140,11 +140,14 @@
   function isMiniRoute() { return location.hash.slice(1) === ROUTE; }
 
   function syncRoute() {
+    const route = location.hash.slice(1);
     const mini = isMiniRoute();
+    const customRoute = [ROUTE, "mini-game-intelligence"].includes(route);
     view.hidden = !mini;
-    content.hidden = mini;
+    content.hidden = customRoute;
     document.body.classList.toggle("mini-ranking-mode", mini);
-    if (topbarTitle) topbarTitle.textContent = mini ? "小游戏真实榜单" : titleDefault;
+    if (topbarTitle && mini) topbarTitle.textContent = "小游戏真实榜单";
+    else if (topbarTitle && !customRoute) topbarTitle.textContent = titleDefault;
     document.querySelectorAll(".nav-item").forEach(item => item.classList.toggle("active", item.getAttribute("href") === location.hash || (!location.hash && item.getAttribute("href") === "#overview")));
     document.querySelector(".sidebar")?.classList.remove("open");
     clearInterval(pollTimer);

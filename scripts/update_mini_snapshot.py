@@ -4,9 +4,15 @@ import json
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+from mini_intelligence import MiniIntelligenceService
+
 
 BASE = "http://106.54.20.29:8088/api/dataeye/mini/"
 DESTINATION = Path(__file__).resolve().parents[1] / "mini-ranking-snapshot.json"
+INTELLIGENCE_DESTINATIONS = {
+    provider: DESTINATION.parent / f"mini-intelligence-{provider}.json"
+    for provider in ("all", "douyin", "wechat")
+}
 ROW_FIELDS = (
     "rank_type", "rank", "external_id", "game_name", "publisher", "rank_change",
     "observed_at", "source_date", "new_entry", "description",
@@ -66,12 +72,19 @@ def main():
     payload = build()
     if not all(payload["providers"][provider]["rows"] for provider in ("douyin", "wechat")):
         raise RuntimeError("refusing to replace last successful snapshot with an empty result")
-    new_text = json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n"
-    if not DESTINATION.exists() or DESTINATION.read_text(encoding="utf-8") != new_text:
-        DESTINATION.write_text(new_text, encoding="utf-8")
+    write_if_changed(DESTINATION, payload)
+    intelligence = MiniIntelligenceService()
+    for provider, path in INTELLIGENCE_DESTINATIONS.items():
+        write_if_changed(path, intelligence.analyze(payload, provider))
     print(json.dumps({"douyin": len(payload["providers"]["douyin"]["rows"]),
                       "wechat": len(payload["providers"]["wechat"]["rows"]),
                       "source_date": {key: item["source_date"] for key, item in payload["providers"].items()}}, ensure_ascii=False))
+
+
+def write_if_changed(path, payload):
+    new_text = json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n"
+    if not path.exists() or path.read_text(encoding="utf-8") != new_text:
+        path.write_text(new_text, encoding="utf-8")
 
 
 if __name__ == "__main__":
