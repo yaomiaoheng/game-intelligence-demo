@@ -478,6 +478,9 @@ async function selectGame(id) {
     getJSON(`/api/intelligence?game_id=${encodeURIComponent(id)}`),
   ]);
   state.selected = game;
+  // A selection can originate in either the radar or the opportunity chart.
+  // Keep the product profile in sync without inventing missing product facts.
+  document.dispatchEvent(new CustomEvent("gamepulse:game-selected", {detail: {gameId: id}}));
   state.metric = "rank";
   document.querySelectorAll(".metric-tabs button").forEach(item => {
     const active = item.dataset.metric === "rank";
