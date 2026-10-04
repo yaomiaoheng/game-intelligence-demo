@@ -1,6 +1,18 @@
 // The public static experience has no permission to redistribute collector records.
 // Real data remains in the authenticated cloud API until publication rights are verified.
 const sourceRegistry = [{"source_id":"app-store-public","source_name":"Apple App Store Search","source_type":"official_public","platform":"ios","access_method":"api","authorization":"none","data_scope":["metadata","publisher","genres","version","price","rating","reviews"],"official":true,"estimated":false,"commercial_license":false,"collection_allowed":true,"retention_allowed":true,"redistribution_allowed":false,"update_frequency":"daily_catalog","quality_grade":"B","terms_url":"https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/","last_compliance_reviewed_at":null,"rate_limit":{}},{"source_id":"commercial-csv","source_name":"Licensed Commercial Data Import","source_type":"commercial_estimate","platform":"cross_platform","access_method":"csv","authorization":"licensed_export","data_scope":["sales_estimate","revenue_estimate","downloads_estimate","market_share"],"official":false,"estimated":true,"commercial_license":true,"collection_allowed":true,"retention_allowed":true,"redistribution_allowed":false,"update_frequency":"provider_schedule","quality_grade":"B","terms_url":"","last_compliance_reviewed_at":null,"rate_limit":{}},{"source_id":"diandian-cloud","source_name":"点点数据授权云采集","source_type":"commercial_estimate","platform":"mobile","access_method":"authorized_browser","authorization":"persistent_cloud_session","data_scope":["rank","download_estimate","revenue_estimate","rating","reviews","historical_trend"],"official":false,"estimated":true,"commercial_license":true,"collection_allowed":true,"retention_allowed":true,"redistribution_allowed":false,"update_frequency":"six_hourly_rank_daily_game","quality_grade":"C","terms_url":"https://app.diandian.com/","last_compliance_reviewed_at":null,"rate_limit":{}},{"source_id":"editorial-research","source_name":"Human Product Research","source_type":"editorial_manual","platform":"cross_platform","access_method":"manual","authorization":"internal_reviewer","data_scope":["gameplay","features","systems","content","monetization"],"official":false,"estimated":false,"commercial_license":false,"collection_allowed":true,"retention_allowed":true,"redistribution_allowed":false,"update_frequency":"after_major_version","quality_grade":"B","terms_url":"","last_compliance_reviewed_at":null,"rate_limit":{}},{"source_id":"igdb","source_name":"IGDB","source_type":"official_public","platform":"cross_platform","access_method":"api","authorization":"oauth_client","data_scope":["metadata","platforms","genres","themes","release_dates"],"official":true,"estimated":false,"commercial_license":false,"collection_allowed":true,"retention_allowed":true,"redistribution_allowed":false,"update_frequency":"weekly","quality_grade":"B","terms_url":"https://api-docs.igdb.com/","last_compliance_reviewed_at":null,"rate_limit":{}},{"source_id":"mock-product-lab","source_name":"Mock Product Lab","source_type":"mock","platform":"demo","access_method":"fixture","authorization":"none","data_scope":["all_demo_fields"],"official":false,"estimated":true,"commercial_license":false,"collection_allowed":true,"retention_allowed":true,"redistribution_allowed":false,"update_frequency":"fixed","quality_grade":"D","terms_url":"","last_compliance_reviewed_at":null,"rate_limit":{}},{"source_id":"steam-public","source_name":"Steam Public Data","source_type":"official_public","platform":"steam","access_method":"api","authorization":"none_or_api_key","data_scope":["metadata","price","discount","current_players","reviews","news"],"official":true,"estimated":false,"commercial_license":false,"collection_allowed":true,"retention_allowed":true,"redistribution_allowed":false,"update_frequency":"hourly_players_daily_catalog","quality_grade":"B","terms_url":"https://store.steampowered.com/api/","last_compliance_reviewed_at":null,"rate_limit":{}},{"source_id":"youtube-data","source_name":"YouTube Data API","source_type":"official_public","platform":"youtube","access_method":"api","authorization":"api_key","data_scope":["video_count","views","likes","comments","channel_coverage"],"official":true,"estimated":false,"commercial_license":false,"collection_allowed":true,"retention_allowed":true,"redistribution_allowed":false,"update_frequency":"daily","quality_grade":"B","terms_url":"https://developers.google.com/youtube/v3","last_compliance_reviewed_at":null,"rate_limit":{}}];
+// Apple Games RSS is a separate source from the App Store Search API. Long-term
+// JSON redistribution remains under review; this switch permits a quick rollback.
+const PUBLIC_APPLE_RADAR_ENABLED = true;
+sourceRegistry.push({source_id: "apple-games-rss", source_name: "Apple Games RSS 榜单",
+  source_type: "official_public", platform: "ios", access_method: "rss",
+  authorization: "none", data_scope: ["rank", "app_store_id", "name", "publisher", "official_link"],
+  official: true, estimated: false, collection_allowed: true,
+  retention_allowed: null, redistribution_allowed: null,
+  update_frequency: "six_hourly_local_fetch", quality_grade: "B",
+  terms_url: "https://www.apple.com/in/itunes/link/",
+  last_compliance_reviewed_at: null,
+  rights_note: "网站热门榜单展示有官方说明；长期完整 JSON 镜像再发布许可尚未确认。"});
 const json = (payload, status = 200) => new Response(JSON.stringify(payload), {
   status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
 });
@@ -129,6 +141,45 @@ const publicGameCatalog = (() => {
       source_errors: errors,
       scope_note: "只读已发布快照；名次不等于收入、下载量或成功概率。"};
   }
+  function officialAppleLink(value) {
+    try {
+      const url = new URL(value);
+      return url.protocol === "https:" && url.hostname === "apps.apple.com" ? url.href : null;
+    } catch { return null; }
+  }
+  async function radar(nativeFetch) {
+    if (!PUBLIC_APPLE_RADAR_ENABLED) return {items: [], updated_at: null, source_error: "公开雷达已关闭"};
+    const snapshot = await readJson(nativeFetch, "apple-game-charts.json");
+    const countryNames = {CN: "中国", US: "美国", JP: "日本"};
+    const items = [];
+    for (const chart of snapshot?.charts || []) {
+      if (!countryNames[chart.country] || !boardNames[chart.chart]) continue;
+      const observedAt = chart.observed_at || null;
+      const date = String(observedAt || "").slice(0, 10);
+      if (!date) continue;
+      for (const row of chart.items || []) {
+        const appId = String(row.app_store_id || "");
+        if (!/^\d+$/.test(appId) || !row.name || !Number.isInteger(row.rank) || row.rank < 1) continue;
+        const link = officialAppleLink(row.source_url);
+        items.push({
+          id: `apple-rss|${chart.country}|${chart.chart}|${appId}|${date}`,
+          name: String(row.name), company: row.publisher || "发行商暂无数据", tags: [boardNames[chart.chart]],
+          region: countryNames[chart.country], country: chart.country, channel: "App Store",
+          board: chart.chart, board_label: boardNames[chart.chart], app_store_id: appId,
+          rank: row.rank, free_rank: chart.chart === "top-free" ? row.rank : null,
+          revenue: null, downloads: null, growth: null, rating: null, score: null,
+          status: isStale(observedAt, chart.stale || chart.status !== "live") ? "旧快照" : "榜单观测",
+          stale: isStale(observedAt, chart.stale || chart.status !== "live"),
+          observed_at: observedAt, source_updated_at: null, official_url: link,
+          source: {id: "apple-games-rss", label: "Apple Games RSS", url: link},
+          signal: `${countryNames[chart.country]} App Store ${boardNames[chart.chart]}第 ${row.rank} 名；仅为本系统单次抓取的榜单名次，不能推断收入、下载或增长。`,
+          trend: [{date, rank: row.rank, revenue: null, downloads: null}],
+        });
+      }
+    }
+    return {items, updated_at: items.map((item) => item.observed_at).filter(Boolean).sort().at(-1) || null,
+      source_error: null, scope_note: "本系统抓取时间，不代表 Apple 官方更新时间；单次名次不能计算趋势。"};
+  }
   async function plan(nativeFetch, request) {
     let payload;
     try { payload = await request.json(); }
@@ -179,17 +230,72 @@ const publicGameCatalog = (() => {
       updated_at: selected.observed_at, generated_at: new Date().toISOString(),
       methodology: "榜单仅作为研究对象上下文。当前缺少三方交叉证据，不评分、不排序、不把名次换算收入、下载或成功概率。"});
   }
-  return {catalog, plan};
+  return {catalog, radar, plan};
 })();
 
 
 const nativeFetch = window.fetch.bind(window);
+async function publicRadarData() {
+  try { return await publicGameCatalog.radar(nativeFetch); }
+  catch (error) { return {items: [], updated_at: null, source_error: String(error.message || error)}; }
+}
 window.fetch = (input, init) => {
   const request = input instanceof Request
     ? input
     : new Request(new URL(String(input), window.location.href), init);
   const url = new URL(request.url);
   if (url.pathname.startsWith('/api/')) {
+
+  if (url.pathname === '/api/overview') {
+    return publicRadarData().then((data) => json({
+      games: new Set(data.items.map((item) => item.app_store_id)).size,
+      observations: data.items.length,
+      countries: [...new Set(data.items.map((item) => item.country))],
+      charts: new Set(data.items.map((item) => `${item.country}|${item.board}`)).size,
+      revenue: null, downloads: null, avgGrowth: null, leader: null,
+      updatedAt: data.updated_at, collectionStatus: data.source_error ? "unavailable" : "snapshot",
+      stale: Boolean(data.source_error) || data.items.every((item) => item.stale),
+      notice: data.source_error
+        ? `Apple 榜单快照暂不可读：${data.source_error}；不使用演示数据。`
+        : `已读取 ${data.items.length} 条 Apple Games 榜单观测；仅显示名次，本系统抓取时间不等于 Apple 官方更新时间。收入、下载及增速暂无数据。`,
+    }));
+  }
+  if (url.pathname === '/api/games') {
+    return publicRadarData().then((data) => {
+      const q = (url.searchParams.get('q') || '').trim().toLocaleLowerCase();
+      const region = url.searchParams.get('region') || '';
+      const channel = url.searchParams.get('channel') || '';
+      const category = url.searchParams.get('category') || '';
+      const limit = Math.min(1000, Math.max(1, Number(url.searchParams.get('limit')) || 1000));
+      const items = data.items.filter((item) =>
+        (!q || `${item.name} ${item.company} ${item.app_store_id} ${item.board_label}`.toLocaleLowerCase().includes(q)) &&
+        (!region || item.region === region) && (!channel || item.channel === channel) && !category);
+      items.sort((a, b) => (a.rank - b.rank) || a.country.localeCompare(b.country));
+      return json({items: items.slice(0, limit), total: items.length,
+        updated_at: data.updated_at, source_error: data.source_error, source: 'apple-games-rss'});
+    });
+  }
+  if (url.pathname.startsWith('/api/games/')) {
+    return publicRadarData().then((data) => {
+      const id = decodeURIComponent(url.pathname.slice('/api/games/'.length));
+      const item = data.items.find((game) => game.id === id);
+      return item ? json(item) : json({error: '没有该公开榜单观测'}, 404);
+    });
+  }
+  if (url.pathname === '/api/intelligence') {
+    return publicRadarData().then((data) => {
+      const item = data.items.find((game) => game.id === url.searchParams.get('game_id'));
+      if (!item) return json({error: '没有该公开榜单观测'}, 404);
+      return json({sources: [{id: 'apple-games-rss', label: 'Apple Games RSS',
+        quality: item.stale ? '旧快照' : '单次榜单观测', url: item.official_url}],
+        updated_at: item.observed_at, analysis: {
+          trend: {summary: '目前只有一轮榜单名次，不能判断走势；收入和下载暂无来源。',
+            evidence: [`${item.region} ${item.board_label}第 ${item.rank} 名`, '本系统抓取时间；Apple 官方更新时间未知'],
+            window: {points: 1}},
+          competitors: [], risks: [],
+        }});
+    });
+  }
 
   if (url.pathname === '/api/development-decision/games') {
     return publicGameCatalog.catalog(nativeFetch).then((value) => json(value));
@@ -247,20 +353,28 @@ async function loadOverview() {
   $("#leaderMetric").textContent = data.leader || "暂无数据";
   $("#updatedAt").textContent = data.updatedAt ? `最后成功 ${formatDateTime(data.updatedAt)}${data.stale ? " · 采集状态待恢复" : ""}` : "暂无成功采集";
   $("#dataNoticeText").textContent = data.notice;
+  $("#overviewVerdict").textContent = data.games ? "已有真实榜单观测" : "暂无可用榜单";
+  $("#overviewSummary").textContent = data.games
+    ? `${data.charts} 张 Apple 游戏榜单、${data.observations} 条实际名次，覆盖${data.countries.join("、")}；仅是本系统抓取快照，不能推断销量、收入或市场增长。${data.stale ? "当前快照已过本系统新鲜度阈值。" : ""}`
+    : "暂无可用的真实榜单，未使用演示数据。";
+  $("#briefCoverage").textContent = data.games
+    ? `${data.charts} 张榜、${data.observations} 条名次；本系统抓取 ${formatDateTime(data.updatedAt)}，Apple 官方更新时间未知。`
+    : "当前暂无可用的真实榜单。";
 }
 
 function renderRows(games) {
   $("#resultCount").textContent = `${games.length} 个结果`;
   $("#gameRows").innerHTML = games.map((game) => `
-    <tr data-id="${game.id}">
-      <td><div class="game-name"><span class="game-icon">${game.name.slice(0, 1)}</span><span><strong>${game.name}</strong><small>${game.company}</small><span class="tags">${game.tags.slice(0, 2).map(tag => `<i class="tag">${tag}</i>`).join("")}</span></span></div></td>
-      <td>${game.region}<br><small>${game.channel}</small></td>
-      <td><span class="rank">${valueCell(game.free_rank)}</span></td>
+    <tr data-id="${escapeHTML(game.id)}">
+      <td><div class="game-name"><span class="game-icon">${escapeHTML(game.name.slice(0, 1))}</span><span><strong>${escapeHTML(game.name)}</strong><small>${escapeHTML(game.company)} · App ID ${escapeHTML(game.app_store_id)}</small><span class="tags"><i class="tag">${escapeHTML(game.board_label)}</i></span>${game.official_url ? `<a class="official-game-link" href="${escapeHTML(game.official_url)}" target="_blank" rel="noopener noreferrer">Apple 官方页面 ↗</a>` : ""}</span></div></td>
+      <td>${escapeHTML(game.region)}<br><small>${escapeHTML(game.channel)}</small></td>
+      <td><span class="rank">${escapeHTML(game.board_label)} 第 ${formatNumber(game.rank)} 名</span></td>
       <td><strong>${valueCell(game.revenue, " 万")}</strong></td>
       <td class="growth ${game.growth < 0 ? "negative" : ""}">${hasValue(game.growth) ? `${game.growth > 0 ? "+" : ""}${game.growth}%` : '<span class="missing-value">暂无数据</span>'}</td>
-      <td><span class="status">${game.status}</span></td>
+      <td><span class="status">${escapeHTML(game.status)}</span><br><small>本系统抓取 ${escapeHTML(formatDateTime(game.observed_at))}</small></td>
     </tr>`).join("") || `<tr><td colspan="6">暂无符合条件的真实游戏数据</td></tr>`;
   document.querySelectorAll("tr[data-id]").forEach(row => row.addEventListener("click", () => selectGame(row.dataset.id)));
+  document.querySelectorAll(".official-game-link").forEach(link => link.addEventListener("click", event => event.stopPropagation()));
 }
 
 async function loadGames() {
@@ -270,21 +384,27 @@ async function loadGames() {
     region: $("#regionFilter").value,
     channel: $("#channelFilter").value,
     sort: $("#sortFilter").value,
-    limit: "100",
+    limit: "1000",
   });
   const data = await getJSON(`/api/games?${params}`);
   state.games = data.items;
   renderRows(state.games);
-  if (!state.selected && state.games[0]) selectGame(state.games[0].id);
+  if (state.games[0] && !state.games.some((game) => game.id === state.selected?.id)) selectGame(state.games[0].id);
 }
 
 async function selectGame(id) {
   const selected = state.games.find((game) => game.id === id);
   const [game, intelligence] = await Promise.all([
     getJSON(`/api/games/${id}`),
-    getJSON(`/api/intelligence?game_name=${encodeURIComponent(selected?.name || "")}`),
+    getJSON(`/api/intelligence?game_id=${encodeURIComponent(id)}`),
   ]);
   state.selected = game;
+  state.metric = "rank";
+  document.querySelectorAll(".metric-tabs button").forEach(item => {
+    const active = item.dataset.metric === "rank";
+    item.classList.toggle("active", active);
+    item.setAttribute("aria-selected", String(active));
+  });
   syncDateControls();
   document.querySelectorAll("tr[data-id]").forEach(row => row.classList.toggle("selected", row.dataset.id === id));
   $("#selectedInsight").textContent = game.signal;
@@ -299,8 +419,8 @@ async function selectGame(id) {
 function renderIntelligence(intelligence) {
   const source = intelligence.sources[0];
   const trend = intelligence.analysis.trend;
-  $("#sourceBadge").textContent = `${source.label} · ${source.quality === "demo" ? "演示数据" : source.quality}`;
-  $("#sourceUpdated").textContent = `来源更新 ${formatDateTime(intelligence.updated_at)}`;
+  $("#sourceBadge").textContent = `${source.label} · ${source.quality}`;
+  $("#sourceUpdated").textContent = `本系统抓取 ${formatDateTime(intelligence.updated_at)} · Apple 官方更新时间未知`;
   $("#sourceUpdated").dateTime = intelligence.updated_at;
   $("#trendSummary").textContent = trend.summary;
   $("#trendEvidence").textContent = `证据：${trend.evidence.join("、")} · ${trend.window.points} 个观测点`;
@@ -392,7 +512,7 @@ function updateChartSummary() {
   const metricCopy = {
     revenue: { title: "收入走势", value: hasValue(latest?.revenue) ? `${formatNumber(latest.revenue)} 万元` : "暂无数据", delta: percentChange("revenue") },
     downloads: { title: "下载走势", value: hasValue(latest?.downloads) ? `${formatNumber(latest.downloads)} 万次` : "暂无数据", delta: percentChange("downloads") },
-    rank: { title: "免费榜走势", value: hasValue(latest?.rank) ? `第 ${formatNumber(latest.rank)} 名` : "暂无数据", delta: validPoints.length < 2 ? "该区间暂无足够数据" : `${rankChange >= 0 ? "上升" : "下降"} ${Math.abs(rankChange)} 位` },
+    rank: { title: `${game.board_label}观测`, value: hasValue(latest?.rank) ? `第 ${formatNumber(latest.rank)} 名` : "暂无数据", delta: validPoints.length < 2 ? "单次观测，暂无趋势" : `${rankChange >= 0 ? "上升" : "下降"} ${Math.abs(rankChange)} 位` },
   }[state.metric];
   $("#chartTitle").textContent = `${game.name} · ${metricCopy.title}`;
   $("#chartRevenue").textContent = metricCopy.value;
@@ -443,7 +563,7 @@ function renderTrendTable(points) {
 }
 
 function updateRangeTrendSummary(points) {
-  const labels = { revenue: "收入", downloads: "下载", rank: "免费榜排名" };
+  const labels = { revenue: "收入", downloads: "下载", rank: `${state.selected?.board_label || "榜单"}排名` };
   const valid = points.filter(point => hasValue(point[state.metric]));
   const range = state.startDate && state.endDate ? `${dateLabel(state.startDate)} 至 ${dateLabel(state.endDate)}` : "当前区间";
   let summary;
@@ -517,7 +637,7 @@ function drawChart(points, metric = "revenue") {
   const hasLine = makePath(metric, styles[metric]);
   const empty = $("#chartEmptyState");
   empty.hidden = hasLine;
-  empty.textContent = points.length ? `所选区间暂无${{ revenue: "收入", downloads: "下载", rank: "免费榜" }[metric]}数据` : "所选时间区间暂无观测数据";
+  empty.textContent = points.length ? `所选区间暂无${{ revenue: "收入", downloads: "下载", rank: state.selected?.board_label || "榜单" }[metric]}数据` : "所选时间区间暂无观测数据";
   $("#chartAxis").innerHTML = points.length ? points.map(point => `<span>${dateLabel(point.date)}</span>`).join("") : `<span>${dateLabel(state.startDate)}</span><span>${dateLabel(state.endDate)}</span>`;
 }
 
