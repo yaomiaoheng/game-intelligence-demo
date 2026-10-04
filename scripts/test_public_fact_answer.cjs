@@ -30,6 +30,11 @@ async function run() {
   const top = await ask('中国 App Store 免费榜前 5 名？');
   assert.equal(top.status, 'evidence_fact');
   assert.equal(top.evidence_count, 5);
+  const gbTop = await ask('英国 App Store 付费榜前 2 名？');
+  assert.equal(gbTop.status, 'evidence_fact');
+  assert.equal(gbTop.evidence_count, 2);
+  assert.match(gbTop.answer, /英国 App Store/);
+  assert.ok(gbTop.evidence.every(item => item.source_url?.includes('/gb/')));
   assert.match(top.answer, /Apple Games RSS/);
   assert.match(top.answer, /Apple 官方榜单更新时间未知/);
   assert.match(top.answer, /名次不代表下载量/);

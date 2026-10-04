@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-COUNTRIES = ("CN", "US", "JP")
+COUNTRIES = ("CN", "US", "JP", "GB", "KR", "TW", "HK", "SG")
 CHARTS = {"top-free": "topfreeapplications", "top-paid": "toppaidapplications",
           "top-grossing": "topgrossingapplications"}
 
