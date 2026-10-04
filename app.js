@@ -13,6 +13,15 @@ sourceRegistry.push({source_id: "apple-games-rss", source_name: "Apple Games RSS
   terms_url: "https://www.apple.com/in/itunes/link/",
   last_compliance_reviewed_at: null,
   rights_note: "网站热门榜单展示有官方说明；长期完整 JSON 镜像再发布许可尚未确认。"});
+sourceRegistry.push({source_id: "dataeye-mini-rankings", source_name: "DataEye ADX 小游戏榜单",
+  source_type: "commercial_estimate", platform: "douyin/wechat", access_method: "published_snapshot",
+  data_scope: ["rank", "game_name", "publisher", "source_date", "rank_change"],
+  official: false, estimated: false, quality_grade: "B", terms_url: "",
+  rights_note: "公开站仅展示已脱敏的只读榜单快照；不等于实时采集。"});
+sourceRegistry.push({source_id: "qimai", source_name: "七麦数据",
+  source_type: "commercial_estimate", platform: "mobile", access_method: "not_connected",
+  data_scope: [], official: false, estimated: true, quality_grade: "—", terms_url: "https://www.qimai.cn/",
+  rights_note: "未接入公开站；没有可展示的七麦数据。"});
 const json = (payload, status = 200) => new Response(JSON.stringify(payload), {
   status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
 });
@@ -34,7 +43,10 @@ const publicWorker = {
       methodology: { version: "real-evidence-gate-v1", weights: {}, limitations: ["暂无足够已授权、可公开的真实证据。"], missing_value_policy: "缺失不补零、不参与评分", recommendation_language: "证据不足，建议继续采集" },
     });
     if (url.pathname === "/api/project-plans/generate" && request.method === "POST") return json({ error: { code: "REAL_DATA_NOT_PUBLIC", message: "暂无获准公开的真实证据，不能生成项目方案" } }, 403);
-    if (url.pathname === "/api/query" && request.method === "POST") return json({ answer: "暂无获准公开展示的真实游戏数据；当前不使用演示回答。" });
+    if (url.pathname === "/api/query" && request.method === "POST") return json({
+      status: "insufficient_evidence",
+      answer: "当前公开站的问答仅返回固定的证据不足说明，尚未生成针对问题的分析报告。请到游戏雷达或小游戏榜单查看已发布的真实榜单观测；收入、下载和机会评分仍无可公开的证据。",
+    });
     if (url.pathname.startsWith("/api/games/") || url.pathname === "/api/intelligence") return json({ error: { code: "REAL_DATA_NOT_PUBLIC", message: "暂无获准公开展示的真实数据" } }, 404);
     if (url.pathname.startsWith("/api/")) return json({ error: "接口不存在" }, 404);
     return nativeFetch(request);
@@ -740,13 +752,14 @@ $("#assistantForm").addEventListener("submit", async (event) => {
   const report = $("#assistantAnswer");
   const reportStatus = $("#assistantReportStatus");
   report.className = "assistant-report-output is-loading";
-  report.textContent = "正在整理问题、证据与数据缺口…";
-  reportStatus.textContent = "分析中";
+  report.textContent = "正在读取公开站的证据不足说明…";
+  reportStatus.textContent = "读取固定说明";
   try {
     const data = await getJSON("/api/query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
+    if (data.status !== "insufficient_evidence") throw new Error("公开站问答状态异常，未展示未经核实的分析结果");
     report.className = "assistant-report-output is-ready";
     report.textContent = data.answer;
-    reportStatus.textContent = "报告已生成";
+    reportStatus.textContent = "证据不足 · 固定说明";
   } catch (error) {
     report.className = "assistant-report-output is-ready";
     report.textContent = error.message;
