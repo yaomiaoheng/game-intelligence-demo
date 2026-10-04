@@ -42,6 +42,11 @@ for (const chart of snapshot.charts) {
   const shown = (html.match(/data-opportunity-id=/g) || []).length;
   assert.equal(shown, Math.min(100, chart.items.filter(item => item.rank <= 100).length));
   assert.match(elements.get('#opportunityBoardCount').textContent, new RegExp(`^${shown} / 100`));
+  const overlap = chart.items.filter(item => new Set(state.opportunityGames
+    .filter(game => String(game.app_store_id) === String(item.app_store_id))
+    .map(game => game.region)).size > 1).length;
+  assert.match(elements.get('#opportunityBoardNote').textContent, new RegExp(`其中 ${overlap} 条`));
+  assert.match(elements.get('#opportunityBoardNote').textContent, /单一 Apple 来源/);
 }
 const unsafe = state.opportunityGames.find(item => item.region === '中国' && item.board === 'top-paid');
 unsafe.name = '<img src=x>';

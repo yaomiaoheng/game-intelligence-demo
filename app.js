@@ -428,14 +428,22 @@ function renderRows(games) {
 function renderOpportunityBoard() {
   const country = $("#opportunityCountry").value;
   const board = $("#opportunityChart").value;
+  const footprints = new Map();
+  for (const game of state.opportunityGames) {
+    const id = String(game.app_store_id || "");
+    if (!/^\d+$/.test(id)) continue;
+    if (!footprints.has(id)) footprints.set(id, new Set());
+    footprints.get(id).add(game.region);
+  }
   const rows = state.opportunityGames.filter(game => game.region === country && game.board === board &&
     Number.isInteger(game.rank) && game.rank >= 1 && game.rank <= 100)
     .sort((a, b) => a.rank - b.rank).slice(0, 100);
+  const crossRegionCount = rows.filter(game => (footprints.get(String(game.app_store_id))?.size || 0) > 1).length;
   $("#opportunityBoardCount").textContent = `${rows.length} / 100 条实际名次`;
-  $("#opportunityBoardNote").textContent = `${country} App Store ${({"top-free":"免费榜","top-paid":"付费榜","top-grossing":"畅销榜"})[board]}：实际采到 ${rows.length} 条。仅为本系统抓取时的排名，Apple 官方更新时间未知；收入、下载和增长暂无数据。`;
+  $("#opportunityBoardNote").textContent = `${country} App Store ${({"top-free":"免费榜","top-paid":"付费榜","top-grossing":"畅销榜"})[board]}：实际采到 ${rows.length} 条；其中 ${crossRegionCount} 条对应的同一 App ID 也在其他地区榜单出现。跨地区统计仍属单一 Apple 来源。仅为本系统抓取时的排名，Apple 官方更新时间未知；收入、下载和增长暂无数据。`;
   $("#opportunityBoardRows").innerHTML = rows.map(game => `<tr data-opportunity-id="${escapeHTML(game.id)}">
     <td><strong>第 ${formatNumber(game.rank)} 名</strong></td>
-    <td>${escapeHTML(game.name)}<small>App ID ${escapeHTML(game.app_store_id)}</small></td>
+    <td>${escapeHTML(game.name)}<small>App ID ${escapeHTML(game.app_store_id)}${(footprints.get(String(game.app_store_id))?.size || 0) > 1 ? ` · 同一来源覆盖 ${footprints.get(String(game.app_store_id)).size} 个地区` : ""}</small></td>
     <td>${escapeHTML(game.company)}</td>
     <td>${game.official_url ? `<a href="${escapeHTML(game.official_url)}" target="_blank" rel="noopener noreferrer">Apple 官方页面 ↗</a>` : "暂无链接"}</td>
     <td>${escapeHTML(formatDateTime(game.observed_at))}${game.stale ? " · 旧快照" : ""}</td>
