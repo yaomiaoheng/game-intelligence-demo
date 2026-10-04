@@ -5,6 +5,9 @@ const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+const page = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+assert.ok(page.indexOf('class="panel opportunity-board-panel"') < page.indexOf('class="analysis-grid" id="opportunities"'),
+  'Top 100 rankings must appear before the single-game observation detail');
 assert.match(fs.readFileSync(path.join(root, 'page-router.js'), 'utf8'),
   /opportunities:.*\.opportunity-board-panel/, 'opportunity page must show the ranking panel');
 const start = source.indexOf('function renderOpportunityBoard()');
