@@ -275,6 +275,29 @@ window.fetch = (input, init) => {
         updated_at: data.updated_at, source_error: data.source_error, source: 'apple-games-rss'});
     });
   }
+  if (/^\/api\/games\/[^/]+\/product-analysis$/.test(url.pathname)) {
+    return publicRadarData().then((data) => {
+      const encodedId = url.pathname.slice('/api/games/'.length, -'/product-analysis'.length);
+      const id = decodeURIComponent(encodedId);
+      const item = data.items.find((game) => game.id === id);
+      if (!item) return json({error: {code: 'GAME_NOT_FOUND', message: '没有该公开榜单观测'}}, 404);
+      return json({
+        kind: 'chart_evidence', data_mode: 'real', review_status: '仅榜单事实，产品字段未审核',
+        name: item.name, updated_at: item.observed_at,
+        fields: {
+          publisher: item.company === '发行商暂无数据' ? null : item.company,
+          app_store_id: item.app_store_id, region: item.region, channel: item.channel,
+          chart: item.board_label, rank: item.rank, observed_at: item.observed_at,
+          source_updated_at: item.source_updated_at, source_url: item.official_url,
+          source_name: 'Apple Games RSS', stale: item.stale,
+        },
+        limitations: [
+          '本系统抓取时间不等于 Apple 官方更新时间；单次榜单名次不能证明收入、下载量或增长。',
+          '玩法、评论、版本事件、运营和独立来源尚无已审核的产品证据，不生成产品拆解结论。',
+        ],
+      });
+    });
+  }
   if (url.pathname.startsWith('/api/games/')) {
     return publicRadarData().then((data) => {
       const id = decodeURIComponent(url.pathname.slice('/api/games/'.length));

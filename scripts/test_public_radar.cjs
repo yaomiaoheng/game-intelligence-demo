@@ -37,6 +37,13 @@ async function run() {
   const item = all.items[0];
   const detail = await get(`/api/games/${encodeURIComponent(item.id)}`);
   assert.equal(detail.id, item.id);
+  const profile = await get(`/api/games/${encodeURIComponent(item.id)}/product-analysis`);
+  assert.equal(profile.kind, 'chart_evidence');
+  assert.equal(profile.fields.app_store_id, item.app_store_id);
+  assert.equal(profile.fields.rank, item.rank);
+  assert.equal(profile.fields.source_url, item.official_url);
+  assert.equal(profile.fields.source_updated_at, null);
+  assert.ok(!('core_gameplay' in profile) && !('revenue' in profile.fields), 'do not invent product facts');
   const intelligence = await get(`/api/intelligence?game_id=${encodeURIComponent(item.id)}`);
   assert.equal(intelligence.analysis.trend.window.points, 1);
   assert.equal(intelligence.analysis.competitors.length, 0);
