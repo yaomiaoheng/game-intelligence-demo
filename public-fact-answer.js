@@ -8,9 +8,12 @@
   const APPLE_BOARDS = {"免费榜": "top-free", "付费榜": "top-paid", "畅销榜": "top-grossing"};
   const MINI_BOARDS = {"畅销榜": "bestsellerList", "人气榜": "popularityList",
     "新游榜": "freshGameList", "畅玩榜": "mostPlayedList"};
-  const APPLE_COUNTRIES = {"中国": "CN", "美国": "US", "日本": "JP", "CN": "CN", "US": "US", "JP": "JP"};
+  const APPLE_COUNTRIES = {"中国": "CN", "美国": "US", "日本": "JP", "英国": "GB", "韩国": "KR",
+    "中国台湾": "TW", "台湾": "TW", "中国香港": "HK", "香港": "HK", "新加坡": "SG",
+    "CN": "CN", "US": "US", "JP": "JP", "GB": "GB", "KR": "KR", "TW": "TW", "HK": "HK", "SG": "SG"};
   const MINI_PROVIDERS = {"抖音": "douyin", "微信": "wechat"};
-  const APPLE_LABEL = {CN: "中国", US: "美国", JP: "日本"};
+  const APPLE_LABEL = {CN: "中国", US: "美国", JP: "日本", GB: "英国", KR: "韩国",
+    TW: "中国台湾", HK: "中国香港", SG: "新加坡"};
   const FORBIDDEN = /收入|营收|下载|销量|销售额|留存|增速|增长率|市场趋势|趋势预测|预测|潜力|立项|投资|成功率|成功概率|推荐方案|最火|最热门|玩法|运营表现|评分|评论|忽略.*指令|绕过|密码|cookie|token/i;
 
   function reply(status, answer, evidence = []) {
@@ -133,7 +136,7 @@
       if (options.appleEnabled === false) return reply("insufficient_evidence", "公开 Apple 榜单读取已关闭，当前不提供该来源的问答。 ");
       const country = findChoice(query, APPLE_COUNTRIES);
       const board = findChoice(query, APPLE_BOARDS);
-      if (!country || !board) return reply("clarification", "请指定 App Store 国家（中国/美国/日本）和榜单（免费/付费/畅销）。 ");
+      if (!country || !board) return reply("clarification", "请指定 App Store 地区（中国/美国/日本/英国/韩国/中国台湾/中国香港/新加坡）和榜单（免费/付费/畅销）。 ");
       let snapshot;
       try { snapshot = await read(fetcher, "apple-game-charts.json"); }
       catch { return reply("insufficient_evidence", "Apple 榜单快照当前读取失败；未使用演示或旧的内置数据代替。 "); }

@@ -14,6 +14,8 @@ const start = source.indexOf('function renderOpportunityBoard()');
 const end = source.indexOf('async function loadOpportunityBoard()', start);
 assert.ok(start >= 0 && end > start, 'opportunity ranking renderer exists');
 const snapshot = JSON.parse(fs.readFileSync(path.join(root, 'apple-game-charts.json'), 'utf8'));
+const regions = {CN: '中国', US: '美国', JP: '日本', GB: '英国', KR: '韩国',
+  TW: '中国台湾', HK: '中国香港', SG: '新加坡'};
 const elements = new Map(['#opportunityCountry', '#opportunityChart', '#opportunityBoardCount',
   '#opportunityBoardNote', '#opportunityBoardRows'].map(id => [id, {value: '', textContent: '', innerHTML: ''}]));
 const escapeHTML = value => String(value).replace(/[&<>"']/g, ch => ({
@@ -21,7 +23,7 @@ const escapeHTML = value => String(value).replace(/[&<>"']/g, ch => ({
 })[ch]);
 const state = {opportunityGames: snapshot.charts.flatMap(chart => chart.items.map(row => ({
   id: `${chart.country}|${chart.chart}|${row.app_store_id}`,
-  region: {CN: '中国', US: '美国', JP: '日本'}[chart.country], board: chart.chart,
+  region: regions[chart.country], board: chart.chart,
   rank: row.rank, name: row.name, app_store_id: row.app_store_id,
   company: row.publisher, official_url: row.source_url, observed_at: chart.observed_at,
   stale: chart.stale,
@@ -33,7 +35,7 @@ const context = vm.createContext({state, Number, escapeHTML,
 });
 vm.runInContext(`${source.slice(start, end)}\nglobalThis.render = renderOpportunityBoard;`, context);
 for (const chart of snapshot.charts) {
-  elements.get('#opportunityCountry').value = {CN: '中国', US: '美国', JP: '日本'}[chart.country];
+  elements.get('#opportunityCountry').value = regions[chart.country];
   elements.get('#opportunityChart').value = chart.chart;
   context.render();
   const html = elements.get('#opportunityBoardRows').innerHTML;
@@ -49,4 +51,4 @@ elements.get('#opportunityChart').value = 'top-paid';
 context.render();
 assert.ok(!elements.get('#opportunityBoardRows').innerHTML.includes('<img src=x>'));
 assert.ok(!elements.get('#opportunityBoardRows').innerHTML.includes(' onmouseover="alert(1)'));
-process.stdout.write('Opportunity board: all nine real charts display up to 100 actual rows.\n');
+process.stdout.write(`Opportunity board: all ${snapshot.charts.length} real charts display up to 100 actual rows.\n`);

@@ -55,6 +55,8 @@ const publicWorker = {
 
 // Static Pages publishes only redacted read-only snapshots. No browser session or token is used.
 const publicGameCatalog = (() => {
+  const countryNames = {CN: "中国", US: "美国", JP: "日本", GB: "英国", KR: "韩国",
+    TW: "中国台湾", HK: "中国香港", SG: "新加坡"};
   const boardNames = {topFree: "免费榜", topPaid: "付费榜", topGrossing: "畅销榜",
     topFresh: "新游榜", popularityList: "人气榜", bestsellerList: "畅销榜",
     freshGameList: "新游榜", mostPlayedList: "畅玩榜",
@@ -162,7 +164,6 @@ const publicGameCatalog = (() => {
   async function radar(nativeFetch) {
     if (!PUBLIC_APPLE_RADAR_ENABLED) return {items: [], updated_at: null, source_error: "公开雷达已关闭"};
     const snapshot = await readJson(nativeFetch, "apple-game-charts.json");
-    const countryNames = {CN: "中国", US: "美国", JP: "日本"};
     const items = [];
     for (const chart of snapshot?.charts || []) {
       if (!countryNames[chart.country] || !boardNames[chart.chart]) continue;
@@ -288,7 +289,9 @@ window.fetch = (input, init) => {
       const region = url.searchParams.get('region') || '';
       const channel = url.searchParams.get('channel') || '';
       const category = url.searchParams.get('category') || '';
-      const limit = Math.min(1000, Math.max(1, Number(url.searchParams.get('limit')) || 1000));
+      const requested = Number(url.searchParams.get('limit'));
+      const limit = Number.isSafeInteger(requested) && requested > 0
+        ? Math.min(requested, data.items.length) : data.items.length;
       const items = data.items.filter((item) =>
         (!q || `${item.name} ${item.company} ${item.app_store_id} ${item.board_label}`.toLocaleLowerCase().includes(q)) &&
         (!region || item.region === region) && (!channel || item.channel === channel) && !category);
@@ -446,7 +449,7 @@ function renderOpportunityBoard() {
 
 async function loadOpportunityBoard() {
   try {
-    const data = await getJSON("/api/games?limit=1000");
+    const data = await getJSON("/api/games");
     state.opportunityGames = data.items || [];
     renderOpportunityBoard();
   } catch (error) {
@@ -463,7 +466,6 @@ async function loadGames() {
     region: $("#regionFilter").value,
     channel: $("#channelFilter").value,
     sort: $("#sortFilter").value,
-    limit: "1000",
   });
   const data = await getJSON(`/api/games?${params}`);
   state.games = data.items;

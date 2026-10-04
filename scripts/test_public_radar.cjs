@@ -23,7 +23,7 @@ async function run() {
   vm.runInContext(`${prefix}\nglobalThis.testFetch = window.fetch; globalThis.testRegistry = sourceRegistry;`, context);
   const get = async (url) => (await context.testFetch(`https://example.test${url}`)).json();
 
-  const all = await get('/api/games?limit=1000');
+  const all = await get('/api/games');
   assert.equal(all.total, expected, 'every real published ranking row is available');
   assert.equal(all.items.length, expected);
   assert.ok(all.items.every((item) => item.source.id === 'apple-games-rss'));
@@ -31,8 +31,11 @@ async function run() {
   assert.ok(all.items.every((item) => item.official_url?.startsWith('https://apps.apple.com/')));
   assert.ok(all.items.every((item) => item.app_store_id && item.country && item.board && item.rank > 0));
   assert.ok(all.items.every((item) => item.trend.length === 1), 'one fetch must not pretend to be a trend');
-  const us = await get('/api/games?region=%E7%BE%8E%E5%9B%BD&limit=1000');
+  const us = await get('/api/games?region=%E7%BE%8E%E5%9B%BD');
   assert.equal(us.total, chartFile.charts.filter((chart) => chart.country === 'US')
+    .reduce((sum, chart) => sum + chart.items.length, 0));
+  const gb = await get('/api/games?region=%E8%8B%B1%E5%9B%BD');
+  assert.equal(gb.total, chartFile.charts.filter((chart) => chart.country === 'GB')
     .reduce((sum, chart) => sum + chart.items.length, 0));
   const item = all.items[0];
   const detail = await get(`/api/games/${encodeURIComponent(item.id)}`);

@@ -45,15 +45,15 @@ async function render({applePayload = apple, miniPayload = mini, missingMini = f
 }
 
 async function run() {
-  assert.equal(apple.charts.length, 9);
-  assert.ok(appleCount > 0 && appleCount <= 900, 'nine charts may contain fewer than 100 actual entries each');
+  assert.equal(apple.charts.length, 24);
+  assert.ok(appleCount > 0 && appleCount <= 2400, '24 charts may contain fewer than 100 actual entries each');
   assert.equal(miniCount, 120);
   assert.ok(registry.some((item) => item.source_id === 'qimai'));
   assert.ok(registry.some((item) => item.source_id === 'dataeye-mini-rankings'));
 
   const current = await render();
   assert.match(current.summary, /2 个有公开快照/);
-  assert.match(current.cards, new RegExp(`9 张榜单 / ${appleCount} 条实际名次`));
+  assert.match(current.cards, new RegExp(`24 张榜单 / ${appleCount} 条实际名次`));
   assert.match(current.cards, new RegExp(`6 张榜单 / ${miniCount} 条实际名次`));
   assert.match(current.cards, /最近本系统抓取/);
   assert.match(current.cards, /最近来源观察/);
