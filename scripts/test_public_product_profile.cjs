@@ -33,13 +33,16 @@ const context = vm.createContext({
 });
 vm.runInContext(app.slice(0, app.indexOf('const state = {')), context);
 context.fetch = (...args) => context.window.fetch(...args);
-vm.runInContext(profile, context);
 
 async function run() {
   const listing = await (await context.window.fetch('https://example.test/api/games?limit=1')).json();
   const item = listing.items[0];
   assert.match(app, /dispatchEvent\(new CustomEvent\("gamepulse:game-selected"/);
-  documentHandlers['gamepulse:game-selected']({detail: {gameId: item.id}});
+  assert.match(app, /window\.gamePulseSelectedGameId = id/);
+  // Simulate the first selection resolving before this external script is loaded.
+  context.window.gamePulseSelectedGameId = item.id;
+  vm.runInContext(profile, context);
+  assert.equal(typeof documentHandlers['gamepulse:game-selected'], 'function');
   for (let attempt = 0; attempt < 20 && !element('#productAnalysisBody').innerHTML.includes('已核验的榜单观测'); attempt++) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
@@ -50,6 +53,14 @@ async function run() {
   assert.doesNotMatch(rendered, /成功概率：\d|真实收入：\d/);
   assert.equal(tabs[0].disabled, false);
   assert.ok(tabs.slice(1).every((tab) => tab.disabled));
+  const secondListing = await (await context.window.fetch('https://example.test/api/games?limit=2')).json();
+  const next = secondListing.items.find((game) => game.id !== item.id);
+  assert.ok(next);
+  documentHandlers['gamepulse:game-selected']({detail: {gameId: next.id}});
+  for (let attempt = 0; attempt < 20 && !element('#productAnalysisTitle').textContent.includes(next.name); attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  assert.match(element('#productAnalysisBody').innerHTML, new RegExp(next.app_store_id));
   process.stdout.write('Public product profile: real chart evidence rendered; unsupported tabs disabled.\n');
 }
 
