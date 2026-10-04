@@ -324,7 +324,7 @@ window.fetch = (input, init) => {
 };
 
 const state = {
-  games: [], selected: null, metric: "revenue", rangeDays: 30,
+  games: [], opportunityGames: [], selected: null, metric: "revenue", rangeDays: 30,
   startDate: null, endDate: null, rangeMode: "preset", referenceYear: new Date().getUTCFullYear(),
 };
 const $ = (selector) => document.querySelector(selector);
@@ -375,6 +375,40 @@ function renderRows(games) {
     </tr>`).join("") || `<tr><td colspan="6">暂无符合条件的真实游戏数据</td></tr>`;
   document.querySelectorAll("tr[data-id]").forEach(row => row.addEventListener("click", () => selectGame(row.dataset.id)));
   document.querySelectorAll(".official-game-link").forEach(link => link.addEventListener("click", event => event.stopPropagation()));
+}
+
+function renderOpportunityBoard() {
+  const country = $("#opportunityCountry").value;
+  const board = $("#opportunityChart").value;
+  const rows = state.opportunityGames.filter(game => game.region === country && game.board === board &&
+    Number.isInteger(game.rank) && game.rank >= 1 && game.rank <= 100)
+    .sort((a, b) => a.rank - b.rank).slice(0, 100);
+  $("#opportunityBoardCount").textContent = `${rows.length} / 100 条实际名次`;
+  $("#opportunityBoardNote").textContent = `${country} App Store ${({"top-free":"免费榜","top-paid":"付费榜","top-grossing":"畅销榜"})[board]}：实际采到 ${rows.length} 条。仅为本系统抓取时的排名，Apple 官方更新时间未知；收入、下载和增长暂无数据。`;
+  $("#opportunityBoardRows").innerHTML = rows.map(game => `<tr data-opportunity-id="${escapeHTML(game.id)}">
+    <td><strong>第 ${formatNumber(game.rank)} 名</strong></td>
+    <td>${escapeHTML(game.name)}<small>App ID ${escapeHTML(game.app_store_id)}</small></td>
+    <td>${escapeHTML(game.company)}</td>
+    <td>${game.official_url ? `<a href="${escapeHTML(game.official_url)}" target="_blank" rel="noopener noreferrer">Apple 官方页面 ↗</a>` : "暂无链接"}</td>
+    <td>${escapeHTML(formatDateTime(game.observed_at))}${game.stale ? " · 旧快照" : ""}</td>
+  </tr>`).join("") || '<tr><td colspan="5">该榜单暂无实际采到的游戏；未补造至 100 名。</td></tr>';
+  document.querySelectorAll("tr[data-opportunity-id]").forEach(row => row.addEventListener("click", event => {
+    if (event.target.closest("a")) return;
+    selectGame(row.dataset.opportunityId);
+    $("#opportunities").scrollIntoView({behavior: "smooth"});
+  }));
+}
+
+async function loadOpportunityBoard() {
+  try {
+    const data = await getJSON("/api/games?limit=1000");
+    state.opportunityGames = data.items || [];
+    renderOpportunityBoard();
+  } catch (error) {
+    $("#opportunityBoardCount").textContent = "读取失败";
+    $("#opportunityBoardNote").textContent = `真实榜单暂时无法读取：${error.message}。未使用演示数据。`;
+    $("#opportunityBoardRows").innerHTML = '<tr><td colspan="5">暂无可用的真实榜单</td></tr>';
+  }
 }
 
 async function loadGames() {
@@ -644,6 +678,8 @@ function drawChart(points, metric = "revenue") {
 let debounce;
 $("#filterForm").addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(loadGames, 180); });
 $("#resetFilters").addEventListener("click", () => { $("#filterForm").reset(); loadGames(); });
+$("#opportunityCountry").addEventListener("change", renderOpportunityBoard);
+$("#opportunityChart").addEventListener("change", renderOpportunityBoard);
 document.querySelectorAll(".metric-tabs button").forEach(button => button.addEventListener("click", () => {
   state.metric = button.dataset.metric;
   document.querySelectorAll(".metric-tabs button").forEach(item => {
@@ -696,4 +732,4 @@ $("#assistantForm").addEventListener("submit", async (event) => {
 });
 $(".menu-button").addEventListener("click", () => $(".sidebar").classList.toggle("open"));
 window.addEventListener("resize", () => state.selected && drawChart(selectedTrendPoints(), state.metric));
-Promise.all([loadOverview(), loadGames()]).catch(error => { $("#dataNoticeText").textContent = `加载失败：${error.message}`; });
+Promise.all([loadOverview(), loadGames(), loadOpportunityBoard()]).catch(error => { $("#dataNoticeText").textContent = `加载失败：${error.message}`; });

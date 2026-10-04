@@ -8,7 +8,7 @@
   const pageMap = {
     overview: { title: "游戏商业机会雷达", selectors: ["#dataNotice", ".hero-grid", ".metric-grid"] },
     games: { title: "游戏雷达", selectors: ["#games", "#product-analysis"] },
-    opportunities: { title: "机会洞察", selectors: ["#opportunities", ".intel-grid"] },
+    opportunities: { title: "机会洞察", selectors: ["#opportunities", ".opportunity-board-panel", ".intel-grid"] },
     "development-decision": { title: "开发决策", selectors: ["#development-decision"] },
     "data-sources": { title: "数据来源", selectors: ["#data-sources"] },
     assistant: { title: "智能分析", selectors: ["#assistant"] },
