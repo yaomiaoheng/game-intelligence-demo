@@ -1,6 +1,7 @@
 """Publish only the public mini-game ranking fields, never source internals."""
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.request import Request, urlopen
 
@@ -21,6 +22,20 @@ RUN_FIELDS = (
     "provider", "ranking_type", "period", "status", "started_at", "record_count",
     "error", "billing",
 )
+MAX_FRESH_AGE_SECONDS = 12 * 60 * 60
+
+
+def is_stale(observed_at, upstream_stale=False, now=None):
+    if upstream_stale or not observed_at:
+        return True
+    try:
+        observed = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+        if observed.tzinfo is None:
+            return True
+        age = ((now or datetime.now(timezone.utc)) - observed).total_seconds()
+        return age > MAX_FRESH_AGE_SECONDS or age < -5 * 60
+    except (TypeError, ValueError, AttributeError):
+        return True
 
 
 def fetch(name):
@@ -46,14 +61,22 @@ def build():
             "provider": provider,
             "observed_at": source.get("observed_at"),
             "source_date": source.get("source_date"),
+            "upstream_stale": bool(source.get("stale") or
+                                   (source.get("connection") if isinstance(source.get("connection"), dict) else {}).get("stale")),
             "rows": [{field: row.get(field) for field in ROW_FIELDS} for row in rows if isinstance(row, dict)][:100],
         }
     runs = raw_status.get("last_runs") if isinstance(raw_status.get("last_runs"), list) else []
-    latest_time = max((provider.get("observed_at") or "" for provider in providers.values()), default="") or None
+    provider_times = {provider: item.get("observed_at") for provider, item in providers.items()}
+    provider_stale = {provider: is_stale(provider_times[provider],
+                                       bool(raw_status.get("stale") or item.get("upstream_stale")))
+                      for provider, item in providers.items()}
+    latest_time = max((value or "" for value in provider_times.values()), default="") or None
     return {
         "source": {"name": "GameScope / DataEye ADX", "mode": "published_read_only_snapshot", "real_data": True},
-        "connection": {"state": "published_snapshot", "fetched_at": latest_time, "stale": False,
-                       "warning": "公开体验站展示定时发布的真实快照，不是实时采集；上游更新时间以观测日为准。"},
+        "connection": {"state": "published_snapshot", "fetched_at": latest_time,
+                       "provider_observed_at": provider_times, "provider_stale": provider_stale,
+                       "stale": any(provider_stale.values()),
+                       "warning": "公开体验站定时检查已保存榜单；上游超过 12 小时未提供新观测时显示旧快照，不代表实时采集。"},
         "status": {
             "configured": bool(raw_status.get("configured")), "running": bool(raw_status.get("running")),
             "transport": raw_status.get("transport"), "period": raw_status.get("period"),

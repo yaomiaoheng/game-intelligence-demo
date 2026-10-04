@@ -58,6 +58,8 @@ const publicGameCatalog = (() => {
   function miniItems(snapshot) {
     const groups = new Map();
     for (const provider of ["douyin", "wechat"]) {
+      const providerSnapshot = snapshot?.providers?.[provider];
+      const providerStale = isStale(providerSnapshot?.observed_at, snapshot?.connection?.stale);
       for (const row of snapshot?.providers?.[provider]?.rows || []) {
         if (!row.external_id || !row.source_date || !row.game_name) continue;
         const id = `${provider}|${row.external_id}|${row.source_date}`;
@@ -77,7 +79,7 @@ const publicGameCatalog = (() => {
           as_of: row.source_date, observed_at: row.observed_at || null,
           primary_board_label: board.label, rank: row.rank, rank_change: row.rank_change,
           new_entry: board.new_entry, boards: [board], source: {id: "dataeye-mini-rankings", label: "DataEye 小游戏榜单"},
-          stale: Boolean(snapshot?.connection?.stale), estimated: false});
+          stale: providerStale, estimated: false});
       }
     }
     return [...groups.values()];
@@ -286,10 +288,10 @@ async function selectGame(id) {
   syncDateControls();
   document.querySelectorAll("tr[data-id]").forEach(row => row.classList.toggle("selected", row.dataset.id === id));
   $("#selectedInsight").textContent = game.signal;
-  const hasScoreEvidence = hasValue(game.growth) && hasValue(game.rating);
-  const score = hasScoreEvidence ? Math.max(55, Math.min(96, Math.round(70 + game.growth / 3 + (game.rating - 4) * 8))) : null;
-  $("#scoreValue").textContent = score ?? "/";
-  $(".score-ring").style.background = score === null ? "#e7ece9" : `conic-gradient(var(--green) 0 ${score}%, #e7ece9 ${score}%)`;
+  // Growth and rating alone do not establish a reviewed commercial opportunity score.
+  $("#scoreValue").textContent = "/";
+  $(".score-ring span").textContent = "暂无经审核评分";
+  $(".score-ring").style.background = "#e7ece9";
   renderIntelligence(intelligence);
   renderSelectedTrend();
 }
@@ -303,11 +305,11 @@ function renderIntelligence(intelligence) {
   $("#trendSummary").textContent = trend.summary;
   $("#trendEvidence").textContent = `证据：${trend.evidence.join("、")} · ${trend.window.points} 个观测点`;
   $("#competitorList").innerHTML = intelligence.analysis.competitors.map((item) =>
-    `<li><strong>${item.name}</strong><span>${item.reason} · 增速 ${item.growth_rate > 0 ? "+" : ""}${item.growth_rate}%</span></li>`
+    `<li><strong>${item.name}</strong><span>${item.reason} · 增速 ${hasValue(item.growth_rate) ? `${item.growth_rate > 0 ? "+" : ""}${item.growth_rate}%` : "/"}</span></li>`
   ).join("") || "<li>暂无可比产品</li>";
   $("#riskList").innerHTML = intelligence.analysis.risks.map((item) =>
     `<li><span class="risk-level ${item.level}">${item.level}</span><span>${item.summary}</span></li>`
-  ).join("") || "<li>当前未识别到风险信号</li>";
+  ).join("") || "<li>证据不足，尚不能评估风险</li>";
 }
 
 function formatDateTime(value) {

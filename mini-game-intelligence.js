@@ -19,6 +19,12 @@
     })[character]);
   }
 
+  function isStale(value, upstreamStale = false) {
+    const timestamp = Date.parse(value || "");
+    return Boolean(upstreamStale) || !Number.isFinite(timestamp) ||
+      Date.now() - timestamp > 12 * 60 * 60 * 1000 || timestamp - Date.now() > 5 * 60 * 1000;
+  }
+
   function selectedProduct() {
     const items = state.snapshot?.items || [];
     return items.find(item => item.id === state.product)
@@ -67,6 +73,12 @@
   }
 
   function renderSnapshot(snapshot) {
+    const times = snapshot.connection?.provider_observed_at || {};
+    const providerStale = Object.fromEntries(["douyin", "wechat"].map(provider => [provider,
+      isStale(times[provider] || snapshot.connection?.fetched_at, snapshot.connection?.stale)]));
+    snapshot.items = (snapshot.items || []).map(item => ({...item,
+      stale: Boolean(item.stale) || providerStale[item.provider]}));
+    snapshot.connection = {...snapshot.connection, stale: Object.values(providerStale).some(Boolean)};
     state.snapshot = snapshot;
     const counts = snapshot.counts || {};
     for (const type of ["new", "rise", "fall", "leader"]) {
@@ -77,7 +89,7 @@
     document.getElementById("miniIntelItemCount").textContent = `${(snapshot.items || []).length} 条线索`;
     const note = document.getElementById("miniIntelSourceNote");
     note.classList.toggle("stale", Boolean(snapshot.connection?.stale));
-    note.textContent = `榜单名次只读已保存榜单，不触发付费取数；其他来源仅补充产品、厂商、版本、评价与运营证据，不将其改写为榜单、收入或下载量。${(snapshot.boards || []).some(board => board.source_date !== snapshot.latest) ? "部分榜单为旧快照，日期分别标注。" : ""}${snapshot.invalid_records ? `有 ${snapshot.invalid_records} 条来源日期或字段不完整的记录未用于结论。` : ""}${snapshot.connection?.warning ? ` ${snapshot.connection.warning}` : ""}`;
+    note.textContent = `榜单名次只读已保存榜单，不触发付费取数；其他来源仅补充产品、厂商、版本、评价与运营证据，不将其改写为榜单、收入或下载量。${snapshot.connection.stale ? "上游超过 12 小时未提供新观测或状态异常，以下为最后成功的旧快照。" : ""}${(snapshot.boards || []).some(board => board.source_date !== snapshot.latest) ? "部分榜单为旧快照，日期分别标注。" : ""}${snapshot.invalid_records ? `有 ${snapshot.invalid_records} 条来源日期或字段不完整的记录未用于结论。` : ""}${snapshot.connection?.warning ? ` ${snapshot.connection.warning}` : ""}`;
     document.getElementById("miniIntelMethodText").textContent = snapshot.method || "只参考小游戏榜单真实快照。";
     document.getElementById("miniIntelBoardList").innerHTML = (snapshot.boards || []).map(board => `<li>${board.provider === "douyin" ? "抖音" : "微信"} · ${escapeHTML(board.label)} · ${escapeHTML(board.source_date)} · ${board.records} 条</li>`).join("");
     renderLatest();

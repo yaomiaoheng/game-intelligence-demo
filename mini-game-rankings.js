@@ -33,6 +33,12 @@
     }).format(date);
   }
 
+  function isStale(value, upstreamStale = false) {
+    const timestamp = Date.parse(value || "");
+    return Boolean(upstreamStale) || !Number.isFinite(timestamp) ||
+      Date.now() - timestamp > 12 * 60 * 60 * 1000 || timestamp - Date.now() > 5 * 60 * 1000;
+  }
+
   function rankChange(row) {
     if (row.new_entry) return '<span class="mini-new-tag">新进榜</span>';
     if (row.rank_change === null || row.rank_change === undefined) return "—";
@@ -57,12 +63,12 @@
     </section>`;
   }
 
-  function renderProvider(provider, payload, configuredBoards = []) {
+  function renderProvider(provider, payload, configuredBoards = [], stale = false) {
     const card = document.querySelector(`[data-provider="${provider}"]`);
     if (!card) return;
     const rows = Array.isArray(payload?.rows) ? payload.rows : [];
     const subtitle = card.querySelector(".mini-source-head p");
-    subtitle.textContent = `DataEye ADX 官方 · 已选 ${configuredBoards.length || new Set(rows.map(row => row.rank_type)).size} 张日榜`;
+    subtitle.textContent = `DataEye ADX 官方 · 已选 ${configuredBoards.length || new Set(rows.map(row => row.rank_type)).size} 张日榜${stale ? " · 旧快照" : ""}`;
     const body = card.querySelector(".mini-source-body");
     if (!rows.length) {
       body.innerHTML = '<div class="mini-empty"><span>◎</span><strong>暂无真实榜单快照</strong><small>不会使用演示排名代替。</small></div>';
@@ -94,11 +100,14 @@
     const status = data.status || {};
     const connection = data.connection || {};
     const config = status.config || {};
+    const providerStale = Object.fromEntries(["douyin", "wechat"].map(provider => [provider,
+      isStale(data.providers?.[provider]?.observed_at, connection.stale)]));
+    const stale = Object.values(providerStale).some(Boolean);
     const banner = document.getElementById("miniStatusBanner");
-    banner.classList.toggle("stale", Boolean(connection.stale));
+    banner.classList.toggle("stale", stale);
     banner.classList.remove("error");
-    document.getElementById("miniConnectionTitle").textContent = connection.stale
-      ? "真实快照连接中断 · 正在展示上次成功结果"
+    document.getElementById("miniConnectionTitle").textContent = stale
+      ? `真实榜单包含旧快照（${Object.entries(providerStale).filter(([, value]) => value).map(([provider]) => provider === "douyin" ? "抖音" : "微信").join("、")}）· 展示最后成功结果`
       : connection.state === "published_snapshot"
         ? "真实榜单已发布快照 · 非实时采集"
         : status.configured
@@ -109,7 +118,7 @@
     const limit = config.daily_call_limit ?? "—";
     const maxRows = data.display?.max_rows_per_board || 100;
     document.getElementById("miniScopeNote").textContent = `本页只展示 DataEye 真实数据。当前请求观测日：${status.period || "—"} · 今日已请求 ${calls}/${limit} 次。每榜按来源实际返回展示，最多 ${maxRows} 条，不足时不补齐；来源未提供收入、下载、素材数时不补造。`;
-    for (const provider of ["douyin", "wechat"]) renderProvider(provider, data.providers?.[provider], config.boards?.[provider] || []);
+    for (const provider of ["douyin", "wechat"]) renderProvider(provider, data.providers?.[provider], config.boards?.[provider] || [], providerStale[provider]);
     renderRuns(status.last_runs);
     loaded = true;
   }
