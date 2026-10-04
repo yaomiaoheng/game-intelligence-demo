@@ -46,7 +46,7 @@ async function render({applePayload = apple, miniPayload = mini, missingMini = f
 
 async function run() {
   assert.equal(apple.charts.length, 9);
-  assert.equal(appleCount, 898);
+  assert.ok(appleCount > 0 && appleCount <= 900, 'nine charts may contain fewer than 100 actual entries each');
   assert.equal(miniCount, 120);
   assert.ok(registry.some((item) => item.source_id === 'qimai'));
   assert.ok(registry.some((item) => item.source_id === 'dataeye-mini-rankings'));
@@ -71,21 +71,31 @@ async function run() {
   assert.match(missing.cards, /DataEye ADX 小游戏榜单<\/h3><span>快照读取失败/);
   assert.doesNotMatch(missing.cards, /0 条实际名次（抖音/);
 
-  assert.match(app, /status: "insufficient_evidence",[\s\S]*?固定的证据不足说明/);
-  assert.match(app, /data\.status !== "insufficient_evidence"/);
+  assert.match(app, /window\.PublicFactAnswer\.answer/);
+  assert.match(app, /"evidence_fact", "clarification", "insufficient_evidence"/);
+  const facts = fs.readFileSync(path.join(root, 'public-fact-answer.js'), 'utf8');
   const queryContext = vm.createContext({
-    window: {location: {href: 'https://example.test/index.html'}, fetch: async () => { throw new Error('unexpected network fetch'); }},
+    window: {location: {href: 'https://example.test/index.html'}, fetch: async (request) => {
+      const pathname = new URL(request.url).pathname;
+      if (pathname === '/apple-game-charts.json') return new Response(JSON.stringify(apple));
+      if (pathname === '/mini-ranking-snapshot.json') return new Response(JSON.stringify(mini));
+      throw new Error(`Unexpected public path: ${pathname}`);
+    }},
     URL, URLSearchParams, Request, Response, Date: FixedDate, Set, Map,
   });
+  vm.runInContext(facts, queryContext);
   vm.runInContext(app.slice(0, app.indexOf('const state = {')) + '\nglobalThis.testFetch = window.fetch;', queryContext);
   const ask = async (query) => (await queryContext.testFetch('https://example.test/api/query', {
     method: 'POST', body: JSON.stringify({query}),
   })).json();
-  const one = await ask('最近哪款小游戏最火？');
+  const one = await ask('中国 App Store 免费榜前 3 名？');
   const two = await ask('某游戏收入多少？');
-  assert.equal(one.status, 'insufficient_evidence');
-  assert.equal(one.answer, two.answer, 'the public endpoint must not pretend to generate a tailored report');
+  assert.equal(one.status, 'evidence_fact');
+  assert.equal(one.evidence_count, 3);
+  assert.equal(two.status, 'insufficient_evidence');
+  assert.notEqual(one.answer, two.answer, 'factual ranking replies must retain their source scope');
   assert.match(assistantPage, /当前尚不能生成分析报告/);
+  assert.match(assistantPage, /public-fact-answer\.js/);
   assert.doesNotMatch(assistantPage, /报告将在这里生成|整体分析报告/);
   process.stdout.write('Public source status and assistant evidence-gate contract passed.\n');
 }

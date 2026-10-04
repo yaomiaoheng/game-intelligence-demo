@@ -322,15 +322,15 @@
         </section>
 
         <section class="assistant-workspace" id="assistant" aria-labelledby="assistantTitle">
-          <div class="workspace-heading"><div><span class="kicker">INTELLIGENCE COPILOT</span><h2 id="assistantTitle">智能分析</h2><p>公开站问答尚未接入个性化报告链路；当前只返回固定的证据不足说明。</p></div><span class="workspace-badge">证据优先</span></div>
+          <div class="workspace-heading"><div><span class="kicker">INTELLIGENCE COPILOT</span><h2 id="assistantTitle">智能分析</h2><p>查询已发布的 Apple 游戏榜单和抖音、微信小游戏日榜事实；暂不生成个性化分析或投资结论。</p></div><span class="workspace-badge">证据优先</span></div>
           <div class="assistant-query-panel">
-            <div class="assistant-query-copy"><span class="assistant-icon">✦</span><div><span class="kicker">ASK GAMEPULSE</span><h3>数据缺口说明</h3><p>提交问题不会生成针对该问题的分析报告。</p></div></div>
-            <form id="assistantForm"><label class="sr-only" for="assistantInput">请输入游戏数据问题</label><input id="assistantInput" placeholder="当前仅返回固定的证据不足说明" required /><button>查看说明 <span>→</span></button></form>
+            <div class="assistant-query-copy"><span class="assistant-icon">✦</span><div><span class="kicker">ASK GAMEPULSE</span><h3>公开榜单事实查询</h3><p>可查指定国家、平台和榜单前 10 名以内的已发布名次；收入、下载和增长仍无证据。</p></div></div>
+            <form id="assistantForm"><label class="sr-only" for="assistantInput">请输入游戏数据问题</label><input id="assistantInput" placeholder="例如：中国 App Store 免费榜前 5 名？" required /><button>查询 <span>→</span></button></form>
           </div>
           <section class="assistant-report" aria-labelledby="assistantReportTitle">
-            <div class="assistant-report-heading"><div><span class="kicker">ANALYSIS STATUS</span><h3 id="assistantReportTitle">分析状态与数据缺口</h3></div><span id="assistantReportStatus">固定说明 · 待查看</span></div>
+            <div class="assistant-report-heading"><div><span class="kicker">EVIDENCE STATUS</span><h3 id="assistantReportTitle">榜单事实与数据缺口</h3></div><span id="assistantReportStatus">等待提问</span></div>
             <div class="assistant-report-output is-empty" id="assistantAnswer" aria-live="polite">
-              <div class="assistant-report-empty"><span>✦</span><h4>当前尚不能生成分析报告</h4><p>这里仅显示固定的证据不足回复，不依据输入问题生成结论。已发布的榜单事实请到游戏雷达和小游戏榜单查看。</p></div>
+              <div class="assistant-report-empty"><span>✦</span><h4>当前尚不能生成分析报告</h4><p>请指定来源、地区、榜单与游戏，或查询前 10 名以内的名次。回复附来源和观测时间；不把名次推算为收入或下载。</p></div>
             </div>
             <div class="assistant-project-workspace" id="assistantProjectWorkspace" hidden>
               <h4>真实证据项目研究方案</h4><p>选择已收录游戏、比较类型与团队约束；输出仅用于验证，不构成投资建议。</p>
@@ -349,6 +349,7 @@
       <footer>GamePulse Intelligence · 数据驱动的游戏立项与运营决策</footer>
     </main>
   </div>
+  <script src="./public-fact-answer.js"></script>
   <script src="./app.js"></script>
   <script src="./project-plan-ui.js"></script>
   <script src="./development-decision.js"></script>

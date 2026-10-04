@@ -45,7 +45,7 @@ const publicWorker = {
     if (url.pathname === "/api/project-plans/generate" && request.method === "POST") return json({ error: { code: "REAL_DATA_NOT_PUBLIC", message: "暂无获准公开的真实证据，不能生成项目方案" } }, 403);
     if (url.pathname === "/api/query" && request.method === "POST") return json({
       status: "insufficient_evidence",
-      answer: "当前公开站的问答仅返回固定的证据不足说明，尚未生成针对问题的分析报告。请到游戏雷达或小游戏榜单查看已发布的真实榜单观测；收入、下载和机会评分仍无可公开的证据。",
+      answer: "公开榜单事实查询暂不可用；未使用演示数据替代。",
     });
     if (url.pathname.startsWith("/api/games/") || url.pathname === "/api/intelligence") return json({ error: { code: "REAL_DATA_NOT_PUBLIC", message: "暂无获准公开展示的真实数据" } }, 404);
     if (url.pathname.startsWith("/api/")) return json({ error: "接口不存在" }, 404);
@@ -257,6 +257,16 @@ window.fetch = (input, init) => {
     : new Request(new URL(String(input), window.location.href), init);
   const url = new URL(request.url);
   if (url.pathname.startsWith('/api/')) {
+
+  if (url.pathname === '/api/query' && request.method === 'POST') {
+    if (!window.PublicFactAnswer) return Promise.resolve(json({status: 'insufficient_evidence',
+      answer: '公开榜单事实查询暂不可用；未使用演示数据替代。'}));
+    return request.json().then(payload => window.PublicFactAnswer.answer(
+      payload?.query, nativeFetch, {appleEnabled: PUBLIC_APPLE_RADAR_ENABLED}))
+      .then(result => json(result))
+      .catch(() => json({status: 'insufficient_evidence',
+        answer: '公开榜单事实查询暂不可用；未使用演示数据替代。'}));
+  }
 
   if (url.pathname === '/api/overview') {
     return publicRadarData().then((data) => json({
@@ -752,14 +762,16 @@ $("#assistantForm").addEventListener("submit", async (event) => {
   const report = $("#assistantAnswer");
   const reportStatus = $("#assistantReportStatus");
   report.className = "assistant-report-output is-loading";
-  report.textContent = "正在读取公开站的证据不足说明…";
-  reportStatus.textContent = "读取固定说明";
+  report.textContent = "正在检索已发布的只读榜单快照…";
+  reportStatus.textContent = "检索中";
   try {
     const data = await getJSON("/api/query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
-    if (data.status !== "insufficient_evidence") throw new Error("公开站问答状态异常，未展示未经核实的分析结果");
+    if (!["evidence_fact", "clarification", "insufficient_evidence"].includes(data.status) || typeof data.answer !== "string")
+      throw new Error("公开站问答状态异常，未展示未经核实的结果");
     report.className = "assistant-report-output is-ready";
     report.textContent = data.answer;
-    reportStatus.textContent = "证据不足 · 固定说明";
+    reportStatus.textContent = data.status === "evidence_fact" ? "榜单事实 · 非投资建议"
+      : data.status === "clarification" ? "请补充查询范围" : "证据不足";
   } catch (error) {
     report.className = "assistant-report-output is-ready";
     report.textContent = error.message;
