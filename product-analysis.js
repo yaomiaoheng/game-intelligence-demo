@@ -52,5 +52,7 @@
   document.addEventListener("gamepulse:game-selected", event => {
     if (event.detail?.gameId) load(event.detail.gameId);
   });
+  // The first selection may resolve before this external script attaches its listener.
+  if (window.gamePulseSelectedGameId) load(window.gamePulseSelectedGameId);
   document.querySelector(".product-tabs").addEventListener("click",event=>{const button=event.target.closest("[data-product-tab]");if(!button||!state.profile)return;state.tab=button.dataset.productTab;document.querySelectorAll("[data-product-tab]").forEach(b=>b.classList.toggle("active",b===button));render();});
 })();
