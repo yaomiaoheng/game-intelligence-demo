@@ -166,14 +166,14 @@
         <div class="notice" id="dataNotice"><span id="dataNoticeText">正在核验真实数据状态。</span><time class="updated" id="updatedAt">数据同步中</time></div>
         <div class="hero-grid">
           <article class="hero-card">
-            <div class="hero-copy"><span class="signal">数据状态</span><h2>游戏市场观察<br /><em>等待充分证据</em></h2><p>只根据已授权的真实观测生成结论；缺少数据时保持空白，不使用演示值。</p><a href="#opportunities">查看证据要求 <span>→</span></a></div>
+            <div class="hero-copy"><span class="signal">数据状态</span><h2>游戏市场观察<br /><em id="overviewVerdict">等待快照</em></h2><p id="overviewSummary">读取已发布榜单后展示可核实的市场观察；单次榜单不等于趋势或商业机会。</p><a href="#opportunities">查看证据要求 <span>→</span></a></div>
             <div class="orbital" aria-hidden="true"><div class="orbit orbit-a"></div><div class="orbit orbit-b"></div><div class="core">/<small>暂无结论</small></div></div>
           </article>
-          <article class="brief-card"><div class="card-heading"><div><span class="kicker">DATA BRIEF</span><h3>情报速览</h3></div><span class="pulse">待核验</span></div><ul><li><b>01</b><span>当前暂无可发布的趋势结论。</span></li><li><b>02</b><span>收入与下载缺失时不补零、不计算增长。</span></li><li><b>03</b><span>开发建议需多来源证据与人工审核。</span></li></ul></article>
+          <article class="brief-card"><div class="card-heading"><div><span class="kicker">DATA BRIEF</span><h3>情报速览</h3></div><span class="pulse">榜单观测</span></div><ul><li><b>01</b><span id="briefCoverage">正在读取已发布榜单。</span></li><li><b>02</b><span>收入与下载缺失时不补零、不计算增长。</span></li><li><b>03</b><span>单次榜单不足以判断趋势；开发建议需独立来源和人工审核。</span></li></ul></article>
         </div>
 
         <div class="metric-grid" aria-label="核心指标">
-          <article><span>监测产品</span><strong id="gamesMetric">—</strong><small>款 · 多渠道样本</small></article>
+          <article><span>榜单游戏</span><strong id="gamesMetric">—</strong><small>款 · App Store 跨榜去重</small></article>
           <article><span>监测收入</span><strong id="revenueMetric">—</strong><small>万元 · 近周期</small></article>
           <article><span>新增下载</span><strong id="downloadsMetric">—</strong><small>万次 · 近周期</small></article>
           <article class="accent-metric"><span>平均增速</span><strong id="growthMetric">—</strong><small>领先产品 <b id="leaderMetric">—</b></small></article>
@@ -183,13 +183,13 @@
           <div class="section-heading"><div><span class="kicker">GAME RADAR</span><h2>游戏市场雷达</h2></div><span class="result-count" id="resultCount">0 个结果</span></div>
           <form class="filters" id="filterForm">
             <label class="search"><span>⌕</span><input id="searchInput" placeholder="搜索游戏、厂商、品类或标签" /></label>
-            <select id="categoryFilter" aria-label="游戏品类"><option value="">全部品类</option><option>策略RPG</option><option>模拟经营</option><option>动作竞技</option><option>休闲益智</option><option>塔防策略</option></select>
-            <select id="regionFilter" aria-label="地区"><option value="">全部地区</option><option>中国</option><option>全球</option><option>欧美</option></select>
-            <select id="channelFilter" aria-label="渠道"><option value="">全部渠道</option><option>App Store</option><option>Google Play</option><option>华为应用市场</option><option>微信小游戏</option></select>
-            <select id="sortFilter" aria-label="排序"><option value="growth">按增速</option><option value="revenue">按收入</option><option value="downloads">按下载</option><option value="rating">按评分</option></select>
+            <select id="categoryFilter" aria-label="游戏品类" disabled><option value="">品类暂无可靠标签</option></select>
+            <select id="regionFilter" aria-label="地区"><option value="">全部地区</option><option>中国</option><option>美国</option><option>日本</option></select>
+            <select id="channelFilter" aria-label="渠道"><option value="">全部渠道</option><option>App Store</option></select>
+            <select id="sortFilter" aria-label="排序"><option value="rank">按榜单名次</option></select>
             <button class="reset-filter" id="resetFilters" type="button">重置</button>
           </form>
-          <div class="table-wrap"><table><thead><tr><th>产品</th><th>市场 / 渠道</th><th>免费榜</th><th>收入</th><th>周期增速</th><th>情报信号</th></tr></thead><tbody id="gameRows"></tbody></table></div>
+          <div class="table-wrap"><table><thead><tr><th>产品 / 官方链接</th><th>市场 / 渠道</th><th>榜单名次</th><th>收入</th><th>周期增速</th><th>数据状态</th></tr></thead><tbody id="gameRows"></tbody></table></div>
         </section>
 
         <div class="analysis-grid" id="opportunities">
