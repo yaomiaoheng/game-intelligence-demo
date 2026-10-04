@@ -116,6 +116,53 @@
     return reply("evidence_fact", `${row[details.nameField]}在${prefix}当前已发布快照中排第 ${row.rank} 名。\n${provenance}名次不代表下载量、收入或增长。`, evidence);
   }
 
+  function crossMarketAnswer(query, snapshot, now) {
+    const board = findChoice(query, APPLE_BOARDS);
+    const charts = (snapshot?.charts || []).filter(chart => APPLE_LABEL[chart.country] &&
+      (!board || chart.chart === board));
+    const groups = new Map();
+    for (const chart of charts) {
+      for (const row of chart.items || []) {
+        const id = String(row.app_store_id || "");
+        if (!/^\d+$/.test(id) || !row.name || !Number.isInteger(row.rank) || row.rank < 1 || row.rank > 100) continue;
+        if (!groups.has(id)) groups.set(id, {id, name: row.name, entries: [], regions: new Set()});
+        const game = groups.get(id);
+        game.regions.add(chart.country);
+        game.entries.push({country: chart.country, chart: chart.chart, rank: row.rank,
+          observed_at: chart.observed_at, stale: stale(chart.observed_at, chart.stale || chart.status !== "live", now),
+          source_url: /^https:\/\/apps\.apple\.com\//.test(row.source_url || "") ? row.source_url : null});
+      }
+    }
+    const all = [...groups.values()];
+    const matches = exactMatch(all, query, "id", "name");
+    const requestedId = /(?:App\s*ID|应用\s*ID)\s*[:：#]?\s*(\d{5,})/i.test(query);
+    if (requestedId && !matches.length) return reply("insufficient_evidence", "所查 App ID 未出现在当前已发布的 Apple 游戏榜单快照；这不表示它不在市场上。 ");
+    if (matches.length) {
+      const ids = new Set(matches.map(game => game.id));
+      if (ids.size > 1) return reply("clarification", "同名游戏对应多个 App ID；请用 App ID 指定要核查的游戏。 ");
+      const game = matches[0];
+      const entries = game.entries.sort((a, b) => a.country.localeCompare(b.country) || a.chart.localeCompare(b.chart));
+      const facts = entries.map(item => `${APPLE_LABEL[item.country]}${Object.keys(APPLE_BOARDS).find(label => APPLE_BOARDS[label] === item.chart)}第 ${item.rank} 名${item.stale ? "（旧快照）" : ""}`);
+      return reply("evidence_fact", `${game.name}（App ID ${game.id}）在当前已发布快照中覆盖 ${game.regions.size} 个地区、${entries.length} 张榜：${facts.join("；")}。\n这是同一 Apple 榜单来源的本系统抓取观察，不是多个独立来源；Apple 官方更新时间未知，不能推断收入、下载、增长或市场潜力。`,
+        entries.map(item => ({name: game.name, app_store_id: game.id, country: item.country,
+          chart: item.chart, rank: item.rank, source_id: "apple-games-rss",
+          observed_at: item.observed_at, stale: item.stale, source_url: item.source_url})));
+    }
+    const top = /(?:前|top)\s*(\d{1,3})\s*(?:名|条)?/i.exec(query);
+    const limit = top ? Number(top[1]) : 5;
+    if (!limit || limit > MAX_LIST) return reply("clarification", `一次最多列出 ${MAX_LIST} 款跨地区在榜游戏，请缩小数量。`);
+    const repeated = all.filter(game => game.regions.size >= 2)
+      .sort((a, b) => b.regions.size - a.regions.size || b.entries.length - a.entries.length || a.name.localeCompare(b.name))
+      .slice(0, limit);
+    if (!repeated.length) return reply("insufficient_evidence", "当前已发布的 Apple 游戏榜单快照没有同一 App ID 跨地区在榜记录；不以同名推测是同一游戏。 ");
+    const facts = repeated.map(game => `${game.name}（App ID ${game.id}）：${game.regions.size} 个地区、${game.entries.length} 张榜`);
+    const oldCount = charts.filter(chart => stale(chart.observed_at, chart.stale || chart.status !== "live", now)).length;
+    return reply("evidence_fact", `按同一 App ID 合并，当前 Apple 游戏${board ? `${Object.keys(APPLE_BOARDS).find(label => APPLE_BOARDS[label] === board)}` : "各类榜单"}快照中跨地区在榜的前 ${repeated.length} 款：${facts.join("；")}。\n覆盖 ${charts.length} 张榜${oldCount ? `，其中 ${oldCount} 张为旧快照` : ""}；Apple 官方更新时间未知。这是单一来源的榜单覆盖统计，不是独立证据交叉验证，也不能推断收入、下载、增长或开发潜力。`,
+      repeated.map(game => ({name: game.name, app_store_id: game.id,
+        countries: [...game.regions], chart_count: game.entries.length,
+        source_id: "apple-games-rss", observed_at: snapshot.published_at || null})));
+  }
+
   async function answer(rawQuery, fetcher, options = {}) {
     const query = String(rawQuery || "").trim();
     if (!query || query.length > 200) return reply("clarification", "请用 200 字以内的问题指定平台、地区、榜单与游戏。 ");
@@ -134,6 +181,13 @@
     }
     if (scope === "apple") {
       if (options.appleEnabled === false) return reply("insufficient_evidence", "公开 Apple 榜单读取已关闭，当前不提供该来源的问答。 ");
+      const crossMarket = /多(?:个)?地区|多个国家|跨(?:地区|市场)|哪些地区|多少(?:个)?地区/.test(query);
+      if (crossMarket) {
+        let snapshot;
+        try { snapshot = await read(fetcher, "apple-game-charts.json"); }
+        catch { return reply("insufficient_evidence", "Apple 榜单快照当前读取失败；未使用演示数据替代。 "); }
+        return crossMarketAnswer(query, snapshot, now);
+      }
       const country = findChoice(query, APPLE_COUNTRIES);
       const board = findChoice(query, APPLE_BOARDS);
       if (!country || !board) return reply("clarification", "请指定 App Store 地区（中国/美国/日本/英国/韩国/中国台湾/中国香港/新加坡）和榜单（免费/付费/畅销）。 ");
