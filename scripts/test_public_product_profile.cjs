@@ -8,6 +8,7 @@ const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const profile = fs.readFileSync(path.join(root, 'product-analysis.js'), 'utf8');
 const charts = JSON.parse(fs.readFileSync(path.join(root, 'apple-game-charts.json'), 'utf8'));
 const elements = new Map();
+const documentHandlers = {};
 function element(selector) {
   if (!elements.has(selector)) elements.set(selector, {
     innerHTML: '', textContent: '', disabled: false, dataset: {},
@@ -26,7 +27,8 @@ const nativeFetch = async (request) => {
 };
 const context = vm.createContext({
   window: {location: {href: 'https://example.test/index.html'}, fetch: nativeFetch},
-  document: {querySelector: element, querySelectorAll: () => tabs},
+  document: {querySelector: element, querySelectorAll: () => tabs,
+    addEventListener(type, fn) { documentHandlers[type] = fn; }},
   URL, URLSearchParams, Request, Response, Date, Set, Map,
 });
 vm.runInContext(app.slice(0, app.indexOf('const state = {')), context);
@@ -36,7 +38,8 @@ vm.runInContext(profile, context);
 async function run() {
   const listing = await (await context.window.fetch('https://example.test/api/games?limit=1')).json();
   const item = listing.items[0];
-  element('#gameRows').handlers.click({target: {closest: () => ({dataset: {id: item.id}})}});
+  assert.match(app, /dispatchEvent\(new CustomEvent\("gamepulse:game-selected"/);
+  documentHandlers['gamepulse:game-selected']({detail: {gameId: item.id}});
   for (let attempt = 0; attempt < 20 && !element('#productAnalysisBody').innerHTML.includes('已核验的榜单观测'); attempt++) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
