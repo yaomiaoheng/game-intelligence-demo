@@ -6,7 +6,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: mini-game-snapshot
+  group: public-snapshots
   cancel-in-progress: false
 jobs:
   update:

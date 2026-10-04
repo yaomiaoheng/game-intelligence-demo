@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="./styles.css" />
   <link rel="stylesheet" href="./development-decision.css" />
   <link rel="stylesheet" href="./product-analysis.css" />
+  <link rel="stylesheet" href="./project-plan.css" />
   <link rel="stylesheet" href="./mini-game-rankings.css" />
   <link rel="stylesheet" href="./mini-game-intelligence.css" />
   <link rel="stylesheet" href="./page-layout.css" />
@@ -232,18 +233,19 @@
             <aside class="decision-card decision-constraints" aria-labelledby="constraintTitle">
               <div class="decision-card-title"><span>01</span><div><small>TEAM CONSTRAINTS</small><h3 id="constraintTitle">开发约束</h3></div></div>
               <form id="developmentDecisionForm">
-                <label class="decision-game-picker">分析小游戏
+                <label class="decision-game-picker">分析游戏
                   <select id="developmentDecisionGame" name="selected_game_id" required disabled>
-                    <option value="">正在读取真实小游戏榜单…</option>
+                    <option value="">正在读取真实游戏榜单…</option>
                   </select>
                 </label>
                 <article class="decision-game-context" id="developmentDecisionGameContext" aria-live="polite">
-                  <strong>请先选择一个小游戏</strong>
+                  <strong>请先选择一个游戏</strong>
                   <span>选择后将带入平台、榜单、名次、观察日期和来源；不会把榜单名次当作收入或成功概率。</span>
                 </article>
+                <fieldset class="project-type-picker"><legend>待比较游戏类型（真实模式必选）</legend><div class="decision-chip-options"><label><input type="checkbox" name="project_game_type" value="休闲" /><span>休闲</span></label><label><input type="checkbox" name="project_game_type" value="解谜" /><span>解谜</span></label><label><input type="checkbox" name="project_game_type" value="策略" /><span>策略</span></label><label><input type="checkbox" name="project_game_type" value="模拟经营" /><span>模拟经营</span></label><label><input type="checkbox" name="project_game_type" value="角色扮演" /><span>角色扮演</span></label></div></fieldset>
                 <div class="decision-field-row">
-                  <label>目标市场<select name="market" required><option value="CN">中国市场</option><option value="GLOBAL">全球市场</option></select></label>
-                  <label>目标平台<select name="platform" required><option value="PC">PC</option><option value="Mobile">移动端</option><option value="Console">主机</option></select></label>
+                  <label>目标市场<select name="market" required><option value="CN">中国市场</option><option value="US">美国市场</option><option value="JP">日本市场</option><option value="GLOBAL">全球市场</option></select></label>
+                  <label>目标平台<select name="platform" required><option value="PC">PC</option><option value="Mobile">移动端（通用）</option><option value="ios">iOS App Store</option><option value="douyin-mini">抖音小游戏</option><option value="wechat-mini">微信小游戏</option><option value="Console">主机</option></select></label>
                 </div>
                 <div class="decision-field-row">
                   <label>团队人数<input name="team_size" type="number" min="1" max="500" value="8" placeholder="例如 8" /></label>
@@ -294,6 +296,8 @@
             </div>
           </div>
 
+          <section class="project-research-output" id="decisionResearchContent" aria-live="polite" hidden></section>
+
           <section class="development-proposal" id="developmentProposal" aria-labelledby="proposalTitle" hidden>
             <div class="proposal-heading"><div><span class="kicker">VALIDATION-LED PLAN</span><h3 id="proposalTitle">完整开发方案</h3></div><button id="closeDevelopmentProposal" type="button" aria-label="收起完整开发方案">收起</button></div>
             <div class="proposal-grid" id="developmentProposalGrid"></div>
@@ -317,6 +321,17 @@
             <div class="assistant-report-output is-empty" id="assistantAnswer" aria-live="polite">
               <div class="assistant-report-empty"><span>✦</span><h4>报告将在这里生成</h4><p>提交问题后，当前回答会进入报告区。证据目录、数据缺口和行动建议已预留结构，后续可直接接入主分支的数据源分析结果。</p></div>
             </div>
+            <div class="assistant-project-workspace" id="assistantProjectWorkspace" hidden>
+              <h4>真实证据项目研究方案</h4><p>选择已收录游戏、比较类型与团队约束；输出仅用于验证，不构成投资建议。</p>
+              <form id="assistantProjectForm" class="assistant-project-form">
+                <label>分析游戏<select name="selected_game_id" required><option value="">正在读取真实游戏…</option></select></label>
+                <fieldset><legend>比较类型（至少选择一种）</legend><label><input type="checkbox" name="game_type" value="休闲" />休闲</label><label><input type="checkbox" name="game_type" value="解谜" />解谜</label><label><input type="checkbox" name="game_type" value="策略" />策略</label><label><input type="checkbox" name="game_type" value="模拟经营" />模拟经营</label><label><input type="checkbox" name="game_type" value="角色扮演" />角色扮演</label></fieldset>
+                <label>目标市场<input name="market" required value="CN" /></label><label>目标平台<input name="platform" required value="Mobile" /></label>
+                <label>团队人数<input name="team_size" type="number" min="1" required /></label><label>预算（元）<input name="budget_cny" type="number" min="0" required /></label><label>周期（月）<input name="development_months" type="number" min="1" required /></label>
+                <button type="submit">生成待验证方案</button>
+              </form>
+              <p id="assistantProjectStatus" role="status"></p><div id="assistantProjectOutput" aria-live="polite"></div>
+            </div>
           </section>
         </section>
       </section>
@@ -324,6 +339,7 @@
     </main>
   </div>
   <script src="./app.js"></script>
+  <script src="./project-plan-ui.js"></script>
   <script src="./development-decision.js"></script>
   <script src="./product-analysis.js"></script>
   <script src="./mini-game-rankings.js"></script>

@@ -58,7 +58,8 @@
 
   function rankMovement(game) {
     if (game.new_entry) return "新进榜";
-    if (!present(game.rank_change) || Number(game.rank_change) === 0) return "持平";
+    if (!present(game.rank_change)) return "暂无历史对比";
+    if (Number(game.rank_change) === 0) return "持平";
     return `${Number(game.rank_change) > 0 ? "上升" : "下降"} ${Math.abs(Number(game.rank_change))} 位`;
   }
 
@@ -69,16 +70,18 @@
     const game = decisionState.selectedGame;
     context.classList.remove("error");
     if (!game) {
-      context.innerHTML = "<strong>请先选择一个小游戏</strong><span>未选择时不会生成针对具体产品的分析结论。</span>";
+      context.innerHTML = "<strong>请先选择一个游戏</strong><span>未选择时不会生成针对具体产品的分析结论。</span>";
       return;
     }
-    form.elements.platform.value = "Mobile";
+    const platform = {douyin: "douyin-mini", wechat: "wechat-mini", "app-store": "ios"}[game.provider];
+    form.elements.platform.value = platform || "Mobile";
+    form.elements.market.value = game.market || "CN";
     context.innerHTML = `<strong>${text(game.game_name)} · ${text(game.provider_label)}</strong><dl>
       <div><dt>榜单与名次</dt><dd>${text(game.primary_board_label)} · 第 ${text(game.rank)} 名</dd></div>
       <div><dt>排名变化</dt><dd>${text(rankMovement(game))}</dd></div>
-      <div><dt>观察日期</dt><dd>${text(game.as_of)}</dd></div>
+      <div><dt>${game.observed_at_kind === "fetch_time" ? "抓取日期" : "观察日期"}</dt><dd>${text(game.as_of)}</dd></div>
       <div><dt>数据来源</dt><dd>${text(game.source?.label)}</dd></div>
-    </dl><span>该榜单事实仅作为观察上下文，不直接参与开发方向评分。</span>`;
+    </dl><span>该榜单事实仅作为观察上下文，不直接参与开发方向评分；名次不等于收入或下载量。${game.stale ? " 当前为最后成功快照。" : ""}</span>`;
   }
 
   function catalogFromIntelligence(result) {
@@ -98,7 +101,7 @@
     const selector = byId("developmentDecisionGame");
     const context = byId("developmentDecisionGameContext");
     try {
-      let response = await fetch("/api/development-decision/mini-games");
+      let response = await fetch("/api/development-decision/games");
       let result = await response.json();
       if (response.ok) decisionState.games = list(result.items);
       else {
@@ -107,19 +110,22 @@
         if (!response.ok) throw new Error(result.error?.message || result.error || "小游戏榜单读取失败");
         decisionState.games = catalogFromIntelligence(result);
       }
-      selector.innerHTML = '<option value="">请选择要分析的小游戏</option>' + decisionState.games.map((game) =>
+      const options = (games) => games.map((game) =>
         `<option value="${escapeHTML(game.id)}">${text(game.game_name)} · ${text(game.provider_label)} · ${text(game.primary_board_label)} #${text(game.rank)}</option>`
       ).join("");
+      selector.innerHTML = '<option value="">请选择要分析的真实游戏</option>' +
+        `<optgroup label="小游戏榜单">${options(decisionState.games.filter((game) => game.provider !== "app-store"))}</optgroup>` +
+        `<optgroup label="App Store 游戏榜单">${options(decisionState.games.filter((game) => game.provider === "app-store"))}</optgroup>`;
       selector.disabled = !decisionState.games.length;
       if (!decisionState.games.length) {
         context.classList.add("error");
-        context.innerHTML = "<strong>暂无可选真实小游戏</strong><span>当前榜单快照没有可用产品，恢复数据后再进行具体产品分析。</span>";
+        context.innerHTML = "<strong>暂无可选真实游戏</strong><span>当前各来源快照没有可用产品，恢复数据后再进行具体产品分析。</span>";
       }
     } catch (error) {
-      selector.innerHTML = '<option value="">真实小游戏榜单暂不可用</option>';
+      selector.innerHTML = '<option value="">真实游戏榜单暂不可用</option>';
       selector.disabled = true;
       context.classList.add("error");
-      context.innerHTML = `<strong>小游戏选择器加载失败</strong><span>${text(error.message)}；未使用 Mock 产品代替。</span>`;
+      context.innerHTML = `<strong>游戏选择器加载失败</strong><span>${text(error.message)}；未使用 Mock 产品代替。</span>`;
     }
   }
 
@@ -278,15 +284,43 @@
     const status = byId("developmentDecisionStatus");
     const submit = form.querySelector("button[type='submit']");
     if (!decisionState.selectedGame) {
-      status.textContent = "请先选择一个真实榜单中的小游戏，再开始分析。";
+      status.textContent = "请先选择一个真实榜单中的游戏，再开始分析。";
       byId("developmentDecisionGame").focus();
       return;
     }
     status.textContent = "正在组合市场证据与团队约束…";
     submit.disabled = true;
     try {
+      const mode = await window.ProjectPlanUI.dataMode();
+      if (mode !== "mock") {
+        const data = new FormData(form);
+        const game_types = window.ProjectPlanUI.selectedTypes(form, "project_game_type");
+        if (!game_types.length) throw new Error("请至少选择一种待比较游戏类型");
+        if (!data.get("team_size") || !data.get("budget_cny") || !data.get("development_months")) {
+          throw new Error("真实方案必须填写团队人数、预算和开发周期");
+        }
+        const result = await window.ProjectPlanUI.submit({
+          selected_game_id: decisionState.selectedGame.id, game_types,
+          market: data.get("market"), platform: data.get("platform"),
+          team_size: Number(data.get("team_size")), budget_cny: Number(data.get("budget_cny")),
+          development_months: Number(data.get("development_months")),
+        });
+        document.querySelector(".decision-analysis-stack").hidden = true;
+        byId("developmentProposal").hidden = true;
+        byId("decisionResearchContent").hidden = false;
+        window.ProjectPlanUI.render(byId("decisionResearchContent"), result);
+        status.textContent = `已形成 ${result.count} 个待验证方向；不能据此宣称投资就绪。`;
+        return;
+      }
+      document.querySelector(".decision-analysis-stack").hidden = false;
+      byId("decisionResearchContent").hidden = true;
+      // Legacy Mock analysis understands only the broad mobile platform.
+      // The real research endpoint retains the selected source-specific platform.
+      const mockPayload = requestPayload();
+      if (["douyin-mini", "wechat-mini", "ios"].includes(mockPayload.platform)) mockPayload.platform = "Mobile";
+      if (["US", "JP"].includes(mockPayload.market)) mockPayload.market = "GLOBAL";
       const response = await fetch("/api/opportunities/analyze", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestPayload()),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(mockPayload),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error?.message || result.error || "分析请求失败");

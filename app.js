@@ -21,12 +21,164 @@ const publicWorker = {
       recommendations: [], sources: [], updated_at: null, status: "insufficient_evidence",
       methodology: { version: "real-evidence-gate-v1", weights: {}, limitations: ["暂无足够已授权、可公开的真实证据。"], missing_value_policy: "缺失不补零、不参与评分", recommendation_language: "证据不足，建议继续采集" },
     });
+    if (url.pathname === "/api/project-plans/generate" && request.method === "POST") return json({ error: { code: "REAL_DATA_NOT_PUBLIC", message: "暂无获准公开的真实证据，不能生成项目方案" } }, 403);
     if (url.pathname === "/api/query" && request.method === "POST") return json({ answer: "暂无获准公开展示的真实游戏数据；当前不使用演示回答。" });
     if (url.pathname.startsWith("/api/games/") || url.pathname === "/api/intelligence") return json({ error: { code: "REAL_DATA_NOT_PUBLIC", message: "暂无获准公开展示的真实数据" } }, 404);
     if (url.pathname.startsWith("/api/")) return json({ error: "接口不存在" }, 404);
     return nativeFetch(request);
   },
 };
+
+// Static Pages publishes only redacted read-only snapshots. No browser session or token is used.
+const publicGameCatalog = (() => {
+  const boardNames = {topFree: "免费榜", topPaid: "付费榜", topGrossing: "畅销榜",
+    topFresh: "新游榜", popularityList: "人气榜", bestsellerList: "畅销榜",
+    freshGameList: "新游榜", mostPlayedList: "畅玩榜",
+    "top-free": "免费榜", "top-paid": "付费榜", "top-grossing": "畅销榜"};
+  const typeLoops = {
+    "休闲": ["短局核心操作", "即时反馈", "重复挑战"],
+    "解谜": ["理解谜题", "尝试解法", "解锁关卡"],
+    "策略": ["收集信息", "制定策略", "复盘结果"],
+    "模拟经营": ["配置资源", "处理事件", "扩展目标"],
+    "角色扮演": ["探索", "交互或战斗", "角色成长"],
+  };
+  const MAX_FRESH_AGE_MS = 12 * 60 * 60 * 1000;
+  function isStale(fetchedAt, upstreamStale = false) {
+    const timestamp = Date.parse(fetchedAt || "");
+    return Boolean(upstreamStale) || !Number.isFinite(timestamp) ||
+      Date.now() - timestamp > MAX_FRESH_AGE_MS || timestamp - Date.now() > 5 * 60 * 1000;
+  }
+  async function readJson(nativeFetch, name) {
+    const file = new URL(`./${name}`, window.location.href);
+    file.searchParams.set("_", String(Date.now()));
+    const response = await nativeFetch(new Request(file, {cache: "no-store"}));
+    if (!response.ok) throw new Error(`${name}: HTTP ${response.status}`);
+    return response.json();
+  }
+  function miniItems(snapshot) {
+    const groups = new Map();
+    for (const provider of ["douyin", "wechat"]) {
+      for (const row of snapshot?.providers?.[provider]?.rows || []) {
+        if (!row.external_id || !row.source_date || !row.game_name) continue;
+        const id = `${provider}|${row.external_id}|${row.source_date}`;
+        const board = {board: row.rank_type, label: boardNames[row.rank_type] || row.rank_type,
+          rank: row.rank, rank_change: row.rank_change, new_entry: Boolean(row.new_entry)};
+        const existing = groups.get(id);
+        if (existing) {
+          existing.boards.push(board);
+          if (Number.isInteger(row.rank) && (!Number.isInteger(existing.rank) || row.rank < existing.rank)) {
+            Object.assign(existing, {rank: row.rank, rank_change: row.rank_change,
+              primary_board_label: board.label, new_entry: board.new_entry});
+          }
+          continue;
+        }
+        groups.set(id, {id, provider, provider_label: provider === "douyin" ? "抖音小游戏" : "微信小游戏",
+          external_id: String(row.external_id), game_name: row.game_name, publisher: row.publisher || null,
+          as_of: row.source_date, observed_at: row.observed_at || null,
+          primary_board_label: board.label, rank: row.rank, rank_change: row.rank_change,
+          new_entry: board.new_entry, boards: [board], source: {id: "dataeye-mini-rankings", label: "DataEye 小游戏榜单"},
+          stale: Boolean(snapshot?.connection?.stale), estimated: false});
+      }
+    }
+    return [...groups.values()];
+  }
+  function appleItems(snapshot) {
+    const groups = new Map();
+    for (const chart of snapshot?.charts || []) {
+      const date = String(chart.observed_at || "").slice(0, 10);
+      if (!chart.country || !date || !boardNames[chart.chart]) continue;
+      for (const row of chart.items || []) {
+        const appId = String(row.app_store_id || "");
+        if (!/^\d+$/.test(appId) || !row.name) continue;
+        const id = `app-store|${chart.country}|${appId}|${date}`;
+        const board = {board: chart.chart, label: boardNames[chart.chart], rank: row.rank,
+          rank_change: null, new_entry: false, stale: isStale(chart.observed_at, chart.stale),
+          observed_at: chart.observed_at};
+        const existing = groups.get(id);
+        if (existing) {
+          existing.boards.push(board);
+          existing.stale ||= board.stale;
+          if (Number.isInteger(row.rank) && (!Number.isInteger(existing.rank) || row.rank < existing.rank)) {
+            Object.assign(existing, {rank: row.rank, primary_board_label: board.label});
+          }
+          continue;
+        }
+        groups.set(id, {id, provider: "app-store", provider_label: `App Store · ${chart.country}`,
+          external_id: appId, game_name: row.name, publisher: row.publisher || null,
+          market: chart.country, platform: "ios", as_of: date, observed_at: chart.observed_at,
+          observed_at_kind: "fetch_time", source_updated_at: null,
+          primary_board_label: board.label, rank: row.rank, rank_change: null, new_entry: false,
+          boards: [board], source: {id: "apple-app-store", label: "Apple App Store 游戏榜单", url: row.source_url},
+          stale: board.stale, estimated: false});
+      }
+    }
+    return [...groups.values()];
+  }
+  async function catalog(nativeFetch) {
+    const errors = {};
+    let mini = [], apple = [];
+    try { mini = miniItems(await readJson(nativeFetch, "mini-ranking-snapshot.json")); }
+    catch (error) { errors.mini_games = error.message; }
+    try { apple = appleItems(await readJson(nativeFetch, "apple-game-charts.json")); }
+    catch (error) { errors.app_store = error.message; }
+    const items = mini.concat(apple);
+    return {items, count: items.length, groups: {mini_games: mini.length, app_store: apple.length},
+      updated_at: items.map((item) => item.observed_at).filter(Boolean).sort().at(-1) || null,
+      source_errors: errors,
+      scope_note: "只读已发布快照；名次不等于收入、下载量或成功概率。"};
+  }
+  async function plan(nativeFetch, request) {
+    let payload;
+    try { payload = await request.json(); }
+    catch { return json({error: {code: "INVALID_REQUEST", message: "请求体不是 JSON"}}, 400); }
+    const selected = (await catalog(nativeFetch)).items.find((item) => item.id === payload.selected_game_id);
+    const types = payload.game_types;
+    if (!selected || !Array.isArray(types) || !types.length || types.length > 8 ||
+        types.some((type) => !typeLoops[type]) ||
+        !Number.isInteger(payload.team_size) || payload.team_size <= 0 ||
+        !Number.isFinite(payload.budget_cny) || payload.budget_cny < 0 ||
+        !Number.isInteger(payload.development_months) || payload.development_months <= 0 ||
+        !payload.market || !payload.platform) {
+      return json({error: {code: "INVALID_REQUEST", message: "请选择已发布游戏和类型，并填写市场、平台、团队、预算及周期"}}, 400);
+    }
+    const constraints = {team_size: payload.team_size, budget_cny: payload.budget_cny,
+      development_months: payload.development_months};
+    const briefs = [...new Set(types)].map((type) => ({
+      game_type: type, market: payload.market, platform: payload.platform,
+      status: "research_hypothesis", recommendation: "仅建议验证该方向，不构成立项或投资结论",
+      positioning_hypothesis: `面向${payload.market}市场、${payload.platform}平台的${type}游戏；目标用户和差异化仍需访谈验证`,
+      core_loop_hypothesis: typeLoops[type], mvp_scope: ["最小可玩循环", "行为埋点", "用户反馈与退出机制"],
+      constraints, feasibility: "unverified", feasibility_note: "尚无经核验的工时和成本基准，不能断言可交付",
+      evidence: [], comparable_game_count: 0, source_count: 0, source_ids: [],
+      counterevidence_and_limits: [{type: "single_chart_only", detail: "当前仅有选定游戏的榜单上下文，没有同类型独立市场证据；排名不能证明收入或需求。"}],
+      missing_evidence: [
+        {label: "目标用户与需求", verification: "访谈目标用户并记录样本与反例"},
+        {label: "留存与核心循环", verification: "可玩原型预注册留存与完成率阈值"},
+        {label: "获客与单位经济", verification: "小额渠道实验并核对成本、转化和回收"},
+        {label: "版权、合规与人工审核", verification: "核查上架规则、素材权利和产品字段"},
+      ],
+      phases: [
+        {phase: "发现与核验", deliverable: "用户访谈、同类证据矩阵、风险登记", gate: "来源和用户问题未经人工确认则停止"},
+        {phase: "可玩原型", deliverable: "最小核心循环和行为埋点", gate: "未达预设玩法阈值则迭代或停止"},
+        {phase: "MVP 小规模测试", deliverable: "留存、获客、成本与反例记录", gate: "单位经济未经实测不得放量"},
+        {phase: "投资审查", deliverable: "财务敏感性、权利与独立复核", gate: "产品、财务、法务分别签核"},
+      ],
+      review_gate: "补齐独立来源、反面证据及人工复核后，才可编制投资人材料",
+      human_review_required: true, investor_ready: false,
+    }));
+    return json({briefs, count: briefs.length, status: "research_only", investor_ready: false,
+      analysis_subject: {id: selected.id, name: selected.game_name, rank: selected.rank,
+        board: selected.primary_board_label,
+        board_code: selected.boards?.find((board) => board.label === selected.primary_board_label && board.rank === selected.rank)?.board || null,
+        country: selected.market || null, platform: selected.platform || selected.provider,
+        external_id: selected.external_id, source: selected.source,
+        observed_at: selected.observed_at, observed_at_kind: selected.observed_at_kind || null,
+        source_updated_at: selected.source_updated_at || null, stale: selected.stale},
+      updated_at: selected.observed_at, generated_at: new Date().toISOString(),
+      methodology: "榜单仅作为研究对象上下文。当前缺少三方交叉证据，不评分、不排序、不把名次换算收入、下载或成功概率。"});
+  }
+  return {catalog, plan};
+})();
 
 
 const nativeFetch = window.fetch.bind(window);
@@ -37,6 +189,12 @@ window.fetch = (input, init) => {
   const url = new URL(request.url);
   if (url.pathname.startsWith('/api/')) {
 
+  if (url.pathname === '/api/development-decision/games') {
+    return publicGameCatalog.catalog(nativeFetch).then((value) => json(value));
+  }
+  if (url.pathname === '/api/project-plans/generate' && request.method === 'POST') {
+    return publicGameCatalog.plan(nativeFetch, request);
+  }
   if (url.pathname === '/api/mini-game-rankings') {
     const file = new URL('./mini-ranking-snapshot.json', window.location.href);
     file.searchParams.set('_', String(Date.now()));
