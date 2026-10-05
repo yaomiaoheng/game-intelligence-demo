@@ -60,6 +60,37 @@ class MiniSnapshotFreshnessTests(unittest.TestCase):
                 module.main()
             fetch.assert_not_called()
 
+    def test_failed_daily_read_keeps_previous_rows_and_marks_attempt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "snapshot.json"
+            old = {"providers": {"douyin": {"rows": [{"rank": 1}]},
+                                 "wechat": {"rows": [{"rank": 2}]}}, "connection": {"stale": False}}
+            path.write_text(json.dumps(old), encoding="utf-8")
+            with patch.object(module, "DESTINATION", path), patch.object(module, "INTELLIGENCE_DESTINATIONS", {}), \
+                    patch.object(module, "datetime") as clock, patch.object(module, "build", side_effect=OSError("offline")) as build:
+                clock.now.return_value = self.now + timedelta(minutes=10)
+                module.main()
+                module.main()
+            self.assertEqual(build.call_count, 1)
+            result = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(result["providers"], old["providers"])
+            self.assertEqual(result["connection"]["attempt_state"], "failed")
+            self.assertTrue(result["connection"]["stale"])
+
+    def test_initial_failure_publishes_empty_state_not_mock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "snapshot.json"
+            outputs = {provider: Path(directory) / f"{provider}.json" for provider in ("all", "douyin", "wechat")}
+            with patch.object(module, "DESTINATION", path), patch.object(module, "INTELLIGENCE_DESTINATIONS", outputs), \
+                    patch.object(module, "datetime") as clock, patch.object(module, "build", side_effect=OSError("offline")):
+                clock.now.return_value = self.now + timedelta(minutes=10)
+                module.main()
+            result = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(result["providers"]["douyin"]["rows"], [])
+            self.assertEqual(result["providers"]["wechat"]["rows"], [])
+            self.assertEqual(result["connection"]["attempt_state"], "failed")
+            self.assertTrue(all(output.is_file() for output in outputs.values()))
+
 
 if __name__ == "__main__":
     unittest.main()

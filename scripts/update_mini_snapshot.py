@@ -102,28 +102,46 @@ def build():
 def main():
     now = datetime.now(timezone.utc)
     local = now.astimezone(CHINA_TIME)
+    today = local.date().isoformat()
     if local.time() < COLLECTION_TIME:
         print("daily mini snapshot window has not opened")
         return
+    existing = None
     if DESTINATION.is_file():
         try:
             existing = json.loads(DESTINATION.read_text(encoding="utf-8"))
-            if existing.get("connection", {}).get("checked_on") == local.date().isoformat():
+            if existing.get("connection", {}).get("checked_on") == today:
                 print("daily mini snapshot already checked today")
                 return
         except (OSError, ValueError, AttributeError):
             pass
-    payload = build()
-    if not all(payload["providers"][provider]["rows"] for provider in ("douyin", "wechat")):
-        raise RuntimeError("refusing to replace last successful snapshot with an empty result")
-    payload["connection"]["checked_on"] = local.date().isoformat()
+    try:
+        payload = build()
+        if not all(payload["providers"][provider]["rows"] for provider in ("douyin", "wechat")):
+            raise RuntimeError("source returned an empty board")
+        attempt_state = "success"
+    except (OSError, ValueError, RuntimeError, TimeoutError) as exc:
+        # Publish only a state change. Never erase a previously successful board
+        # and never retry the source again later the same day.
+        payload = existing if isinstance(existing, dict) and isinstance(existing.get("providers"), dict) else {
+            "source": {"name": "GameScope / DataEye ADX", "mode": "published_read_only_snapshot", "real_data": True},
+            "status": {"public_read_only": True},
+            "providers": {provider: {"provider": provider, "rows": [], "source_date": None, "observed_at": None}
+                          for provider in ("douyin", "wechat")},
+        }
+        payload["connection"] = {**(payload.get("connection") or {}), "state": "published_snapshot",
+                                 "stale": True, "warning": "今日定时读取失败；保留最后成功快照，下一采集日再尝试。"}
+        attempt_state = "failed"
+        print(f"daily mini snapshot failed: {type(exc).__name__}; retained last success")
+    payload["connection"].update({"checked_on": today, "attempt_state": attempt_state})
     write_if_changed(DESTINATION, payload)
     intelligence = MiniIntelligenceService()
     for provider, path in INTELLIGENCE_DESTINATIONS.items():
         write_if_changed(path, intelligence.analyze(payload, provider))
     print(json.dumps({"douyin": len(payload["providers"]["douyin"]["rows"]),
                       "wechat": len(payload["providers"]["wechat"]["rows"]),
-                      "source_date": {key: item["source_date"] for key, item in payload["providers"].items()}}, ensure_ascii=False))
+                      "source_date": {key: item.get("source_date") for key, item in payload["providers"].items()},
+                      "attempt_state": attempt_state}, ensure_ascii=False))
 
 
 def write_if_changed(path, payload):
