@@ -19,10 +19,16 @@
     })[character]);
   }
 
-  function isStale(value, upstreamStale = false) {
+  function expectedSourceDay() {
+    const china = new Date(Date.now() + 8 * 60 * 60 * 1000);
+    const afterCollection = china.getUTCHours() > 10 || (china.getUTCHours() === 10 && china.getUTCMinutes() >= 10);
+    return new Date(china.getTime() - (afterCollection ? 0 : 24 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+  }
+
+  function isStale(value, sourceDate, upstreamStale = false) {
     const timestamp = Date.parse(value || "");
     return Boolean(upstreamStale) || !Number.isFinite(timestamp) ||
-      Date.now() - timestamp > 12 * 60 * 60 * 1000 || timestamp - Date.now() > 5 * 60 * 1000;
+      !sourceDate || sourceDate < expectedSourceDay() || timestamp - Date.now() > 5 * 60 * 1000;
   }
 
   function selectedProduct() {
@@ -75,7 +81,9 @@
   function renderSnapshot(snapshot) {
     const times = snapshot.connection?.provider_observed_at || {};
     const providerStale = Object.fromEntries(["douyin", "wechat"].map(provider => [provider,
-      isStale(times[provider] || snapshot.connection?.fetched_at, snapshot.connection?.stale)]));
+      isStale(times[provider] || snapshot.connection?.fetched_at,
+        (snapshot.boards || []).filter(board => board.provider === provider).map(board => board.source_date).sort().at(-1),
+        snapshot.connection?.provider_stale?.[provider] ?? snapshot.connection?.stale)]));
     snapshot.items = (snapshot.items || []).map(item => ({...item,
       stale: Boolean(item.stale) || providerStale[item.provider]}));
     snapshot.connection = {...snapshot.connection, stale: Object.values(providerStale).some(Boolean)};
@@ -89,7 +97,7 @@
     document.getElementById("miniIntelItemCount").textContent = `${(snapshot.items || []).length} 条线索`;
     const note = document.getElementById("miniIntelSourceNote");
     note.classList.toggle("stale", Boolean(snapshot.connection?.stale));
-    note.textContent = `榜单名次只读已保存榜单，不触发付费取数；其他来源仅补充产品、厂商、版本、评价与运营证据，不将其改写为榜单、收入或下载量。${snapshot.connection.stale ? "上游超过 12 小时未提供新观测或状态异常，以下为最后成功的旧快照。" : ""}${(snapshot.boards || []).some(board => board.source_date !== snapshot.latest) ? "部分榜单为旧快照，日期分别标注。" : ""}${snapshot.invalid_records ? `有 ${snapshot.invalid_records} 条来源日期或字段不完整的记录未用于结论。` : ""}${snapshot.connection?.warning ? ` ${snapshot.connection.warning}` : ""}`;
+    note.textContent = `每天北京时间 10:10 读取一次已保存榜单；榜单名次不触发付费取数。其他来源仅补充经核验身份的产品、厂商、版本、评价与运营证据，不改写榜单、收入或下载量。${snapshot.connection.stale ? "今日未取得新观测或状态异常，以下为最后成功的旧快照。" : ""}${(snapshot.boards || []).some(board => board.source_date !== snapshot.latest) ? "部分榜单为旧快照，日期分别标注。" : ""}${snapshot.invalid_records ? `有 ${snapshot.invalid_records} 条来源日期或字段不完整的记录未用于结论。` : ""}${snapshot.connection?.warning ? ` ${snapshot.connection.warning}` : ""}`;
     document.getElementById("miniIntelMethodText").textContent = snapshot.method || "只参考小游戏榜单真实快照。";
     document.getElementById("miniIntelBoardList").innerHTML = (snapshot.boards || []).map(board => `<li>${board.provider === "douyin" ? "抖音" : "微信"} · ${escapeHTML(board.label)} · ${escapeHTML(board.source_date)} · ${board.records} 条</li>`).join("");
     renderLatest();
@@ -150,7 +158,7 @@
     pollTimer = null;
     if (active) {
       loadSnapshot();
-      pollTimer = setInterval(() => { if (!document.hidden) loadSnapshot(); }, 5000);
+      pollTimer = setInterval(() => { if (!document.hidden) loadSnapshot(); }, 60000);
       window.scrollTo(0, 0);
     }
   }
