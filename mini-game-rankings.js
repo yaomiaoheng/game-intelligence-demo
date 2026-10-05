@@ -33,10 +33,16 @@
     }).format(date);
   }
 
-  function isStale(value, upstreamStale = false) {
+  function expectedSourceDay() {
+    const china = new Date(Date.now() + 8 * 60 * 60 * 1000);
+    const afterCollection = china.getUTCHours() > 10 || (china.getUTCHours() === 10 && china.getUTCMinutes() >= 10);
+    return new Date(china.getTime() - (afterCollection ? 0 : 24 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+  }
+
+  function isStale(value, sourceDate, upstreamStale = false) {
     const timestamp = Date.parse(value || "");
     return Boolean(upstreamStale) || !Number.isFinite(timestamp) ||
-      Date.now() - timestamp > 12 * 60 * 60 * 1000 || timestamp - Date.now() > 5 * 60 * 1000;
+      !sourceDate || sourceDate < expectedSourceDay() || timestamp - Date.now() > 5 * 60 * 1000;
   }
 
   function rankChange(row) {
@@ -54,8 +60,8 @@
       <div class="mini-table-wrap"><table class="mini-table"><thead><tr><th>排名</th><th>游戏 / App ID</th><th>发行商</th><th>来源排名变化</th></tr></thead><tbody>
         ${rows.map(row => `<tr>
           <td data-label="排名"><span class="mini-rank-badge">${escapeHTML(row.rank ?? "—")}</span></td>
-          <td data-label="游戏 / App ID"><span class="mini-game-cell"><strong>${escapeHTML(row.game_name || "名称未提供")}</strong><small>${escapeHTML(row.external_id || "App ID 未提供")}</small>${row.description ? `<small title="${escapeHTML(row.description)}">${escapeHTML(row.description)}</small>` : ""}</span></td>
-          <td data-label="发行商">${escapeHTML(row.publisher || "来源未提供")}</td>
+          <td data-label="游戏 / App ID"><span class="mini-game-cell"><strong>${escapeHTML(row.game_name || "名称未提供")}</strong><small>${escapeHTML(row.external_id || "App ID 未提供")}</small>${row.description ? `<small title="${escapeHTML(row.description)}">${escapeHTML(row.description)}</small>` : ""}${row.supplement?.status === "available" ? `<small>商店补充（字段待核实）：${escapeHTML([row.supplement.category, row.supplement.version && `版本 ${row.supplement.version}`].filter(Boolean).join(" · ") || "暂无其他字段")}${row.supplement.store_url ? ` · <a href="${escapeHTML(row.supplement.store_url)}" target="_blank" rel="noopener noreferrer">来源</a>` : ""}</small>` : ""}</span></td>
+          <td data-label="发行商">${escapeHTML(row.publisher || (row.supplement?.status === "available" ? `${row.supplement.publisher || "暂无"}（商店待核实）` : "暂无"))}</td>
           <td data-label="排名变化">${rankChange(row)}</td>
         </tr>`).join("")}
       </tbody></table></div>
@@ -101,7 +107,8 @@
     const connection = data.connection || {};
     const config = status.config || {};
     const providerStale = Object.fromEntries(["douyin", "wechat"].map(provider => [provider,
-      isStale(data.providers?.[provider]?.observed_at, connection.stale)]));
+      isStale(data.providers?.[provider]?.observed_at, data.providers?.[provider]?.source_date,
+        connection.provider_stale?.[provider] ?? connection.stale)]));
     const stale = Object.values(providerStale).some(Boolean);
     const banner = document.getElementById("miniStatusBanner");
     banner.classList.toggle("stale", stale);
@@ -113,7 +120,7 @@
         : status.configured
         ? `官方 MCP 已连接 · 自动更新${config.enabled ? "已开启" : "已关闭"}`
         : "源站真实快照可读 · 官方 MCP 尚未配置";
-    document.getElementById("miniConnectionCopy").innerHTML = `${escapeHTML(status.update_time || "由源站维护采集周期")}<br>${connection.state === "published_snapshot" ? "页面每 5 秒检查已发布快照，发布任务约每 10 分钟检查上游；不是每 5 秒采集。" : "页面每 5 秒读取公开快照，不向 DataEye 重复取数；同日成功榜单由源站复用缓存。"}${connection.warning ? `<br>${escapeHTML(connection.warning)}` : ""}`;
+    document.getElementById("miniConnectionCopy").innerHTML = `${escapeHTML(status.update_time || "由源站维护采集周期")}<br>每天北京时间 10:10 读取一次源站已保存榜单；页面只重读当日发布快照，手动刷新不会重新采集。${connection.warning ? `<br>${escapeHTML(connection.warning)}` : ""}`;
     const calls = status.calls_today ?? "—";
     const limit = config.daily_call_limit ?? "—";
     const maxRows = data.display?.max_rows_per_board || 100;
@@ -164,7 +171,7 @@
     pollTimer = null;
     if (mini) {
       loadSnapshot(!loaded);
-      pollTimer = setInterval(() => { if (!document.hidden) loadSnapshot(false); }, 5000);
+      pollTimer = setInterval(() => { if (!document.hidden) loadSnapshot(false); }, 60000);
       window.scrollTo(0, 0);
     } else if (location.hash) {
       requestAnimationFrame(() => document.getElementById(location.hash.slice(1))?.scrollIntoView());
